@@ -1,6 +1,6 @@
 ## 🎓 EduGrade
 
-**Live Demo:** https://edugrade-yashwant.netlify.app (or your Netlify URL)
+**Live Demo:** https://edugrade.netlify.app
 
 A modern Student Academic Management System built with React, TypeScript, and Supabase.
 
