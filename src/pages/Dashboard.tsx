@@ -393,14 +393,19 @@ export function Dashboard() {
                           />
                         </td>
                         <td className="py-2 px-2">
-                          <input
-                            type="number"
+                          <select
                             value={subject.credits}
-                            onChange={(e) => updateModalSubject(idx, 'credits', parseInt(e.target.value) || 0)}
+                            onChange={(e) => updateModalSubject(idx, 'credits', parseFloat(e.target.value))}
                             className="input-field text-sm py-1 w-20"
-                            min="0"
-                            max="10"
-                          />
+                          >
+                            <option value={1}>1</option>
+                            <option value={1.5}>1.5</option>
+                            <option value={2}>2</option>
+                            <option value={2.5}>2.5</option>
+                            <option value={3}>3</option>
+                            <option value={3.5}>3.5</option>
+                            <option value={4}>4</option>
+                          </select>
                         </td>
                         <td className="py-2 px-2">
                           <select
