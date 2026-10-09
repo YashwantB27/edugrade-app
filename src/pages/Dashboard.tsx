@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import confetti from 'canvas-confetti'
 import { Navbar } from '../components/Navbar'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -66,6 +67,19 @@ export function Dashboard() {
   const showToast = (message: string) => {
     setToast(message)
     setTimeout(() => setToast(''), 3000)
+  }
+
+  const triggerCelebration = () => {
+    try {
+      confetti({
+        particleCount: 90,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#ec4899', '#a855f7'],
+      })
+    } catch {
+      // fallback gracefully if canvas is unavailable
+    }
   }
 
   const openModal = () => {
@@ -242,6 +256,9 @@ export function Dashboard() {
         }
 
         showToast('✅ Semester updated successfully!')
+        if (modalSGPA >= 8.5) {
+          triggerCelebration()
+        }
       } else {
         // Insert new semester
         const { data: semData, error: semError } = await supabase
@@ -273,6 +290,9 @@ export function Dashboard() {
         if (subError) throw subError
 
         showToast('✅ Semester saved successfully!')
+        if (modalSGPA >= 8.5) {
+          triggerCelebration()
+        }
       }
 
       closeModal()
@@ -357,8 +377,42 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="min-h-screen bg-[rgb(var(--bg-primary))]">
+        <Navbar />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+          {/* Skeleton Hero Banner */}
+          <div className="h-64 rounded-3xl bg-[rgb(var(--bg-secondary))] border border-[rgb(var(--border))] mb-8 flex flex-col sm:flex-row items-center justify-between p-8 gap-6">
+            <div className="space-y-4 w-full sm:w-auto">
+              <div className="h-4 w-32 bg-[rgb(var(--bg-tertiary))] rounded-md" />
+              <div className="h-10 w-48 bg-[rgb(var(--bg-tertiary))] rounded-lg" />
+              <div className="h-4 w-64 bg-[rgb(var(--bg-tertiary))] rounded-md" />
+            </div>
+            <div className="w-28 h-28 rounded-full bg-[rgb(var(--bg-tertiary))] shrink-0" />
+          </div>
+
+          {/* Skeleton Action Bar */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="h-8 w-44 bg-[rgb(var(--bg-secondary))] rounded-lg" />
+            <div className="h-10 w-36 bg-[rgb(var(--bg-secondary))] rounded-lg" />
+          </div>
+
+          {/* Skeleton Semester Cards */}
+          <div className="space-y-5">
+            {[1, 2].map(n => (
+              <div key={n} className="card space-y-4">
+                <div className="flex justify-between items-center">
+                  <div className="h-6 w-36 bg-[rgb(var(--bg-tertiary))] rounded-md" />
+                  <div className="h-8 w-20 bg-[rgb(var(--bg-tertiary))] rounded-md" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-8 w-full bg-[rgb(var(--bg-tertiary))] rounded-md" />
+                  <div className="h-8 w-full bg-[rgb(var(--bg-tertiary))] rounded-md" />
+                  <div className="h-8 w-full bg-[rgb(var(--bg-tertiary))] rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
       </div>
     )
   }
@@ -662,13 +716,18 @@ export function Dashboard() {
                               )}
                             </td>
                             <td className="py-2 px-3">
-                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                                subject.grade === 'S' || subject.grade === 'A' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                                subject.grade === 'B' || subject.grade === 'C' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
-                                subject.grade === 'D' || subject.grade === 'E' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                subject.grade === 'F' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                                subject.grade === 'CP' || subject.grade === 'Completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
-                                'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                              <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-xs font-bold transition-all duration-150 hover:scale-105 ${
+                                subject.grade === 'S' || subject.grade === 'A'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.15)] dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700/60' :
+                                subject.grade === 'B' || subject.grade === 'C'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-300/80 shadow-[0_0_8px_rgba(59,130,246,0.15)] dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700/60' :
+                                subject.grade === 'D' || subject.grade === 'E'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-300/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700/60' :
+                                subject.grade === 'F'
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-300/80 shadow-[0_0_8px_rgba(244,63,94,0.15)] dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700/60' :
+                                subject.grade === 'CP' || subject.grade === 'Completed'
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-300/80 shadow-[0_0_8px_rgba(168,85,247,0.15)] dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60' :
+                                  'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                               }`}>
                                 {subject.grade || '—'}
                               </span>
