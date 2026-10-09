@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS subjects (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   credits INTEGER NOT NULL CHECK (credits >= 0 AND credits <= 10),
-  grade TEXT CHECK (grade IN ('S', 'A', 'B', 'C', 'D', 'E', 'F', 'Completed')),
+  grade TEXT CHECK (grade IN ('S', 'A', 'B', 'C', 'D', 'E', 'F', 'Completed', 'CP')),
   grade_points INTEGER CHECK (grade_points >= 0 AND grade_points <= 10),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -14,6 +14,7 @@ export function Dashboard() {
   const [modalSubjects, setModalSubjects] = useState<Subject[]>([])
   const [editingSemesterId, setEditingSemesterId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
+  const [hoveredTrendIdx, setHoveredTrendIdx] = useState<number | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -122,8 +123,16 @@ export function Dashboard() {
     updated[index] = { ...updated[index], [field]: value }
 
     if (field === 'grade') {
-      const gradePoints = value && value !== 'Completed' ? GRADE_POINTS[value] : null
-      updated[index].grade_points = gradePoints
+      if (value === 'CP' || value === 'Completed') {
+        updated[index].credits = 0
+        updated[index].grade_points = null
+      } else {
+        if (updated[index].credits === 0) {
+          updated[index].credits = 3
+        }
+        const gradePoints = value ? GRADE_POINTS[value] ?? null : null
+        updated[index].grade_points = gradePoints
+      }
     } else if (field === 'grade_points') {
       if (value !== null) {
         const matchedGrade = Object.entries(GRADE_POINTS).find(([_, pts]) => pts === value)?.[0]
@@ -294,12 +303,57 @@ export function Dashboard() {
   const cgpa = calculateCGPA(semesters)
   const badge = getCGPABadge(cgpa)
   const totalCredits = semesters.reduce((sum, sem) =>
-    sum + sem.subjects.reduce((s, sub) => s + sub.credits, 0), 0
+    sum + sem.subjects.reduce((s, sub) =>
+      sub.grade === 'CP' || sub.grade === 'Completed' ? s : s + sub.credits, 0
+    ), 0
   )
   const totalSubjects = semesters.reduce((sum, sem) => sum + sem.subjects.length, 0)
   const modalSGPA = calculateSGPA(modalSubjects)
 
-  const sgpaValues = semesters.map(sem => calculateSGPA(sem.subjects))
+  // Trend data & chart calculations
+  const trendData = semesters.map(sem => {
+    const sgpa = calculateSGPA(sem.subjects)
+    const credits = sem.subjects.reduce((sum, sub) =>
+      sub.grade === 'CP' || sub.grade === 'Completed' ? sum : sum + sub.credits, 0
+    )
+    return {
+      label: sem.label,
+      sgpa,
+      credits,
+    }
+  })
+
+  // Circular gauge parameters
+  const gaugeRadius = 44
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius
+  const gaugePercentage = Math.min(Math.max(cgpa / 10, 0), 1)
+  const gaugeOffset = gaugeCircumference * (1 - gaugePercentage)
+
+  // Chart coordinates
+  const chartWidth = 220
+  const chartHeight = 84
+  const padX = 18
+  const padTop = 14
+  const padBottom = 20
+  const chartPlotWidth = chartWidth - padX * 2
+  const chartPlotHeight = chartHeight - padTop - padBottom
+
+  const trendPoints = trendData.map((d, i) => {
+    const x = trendData.length === 1
+      ? chartWidth / 2
+      : padX + (i * chartPlotWidth) / (trendData.length - 1)
+    const normalized = Math.min(Math.max(d.sgpa / 10, 0), 1)
+    const y = padTop + (1 - normalized) * chartPlotHeight
+    return { ...d, x, y }
+  })
+
+  const linePath = trendPoints.length > 0
+    ? trendPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+    : ''
+
+  const areaPath = trendPoints.length > 0
+    ? `${linePath} L ${trendPoints[trendPoints.length - 1].x.toFixed(1)} ${(chartHeight - padBottom).toFixed(1)} L ${trendPoints[0].x.toFixed(1)} ${(chartHeight - padBottom).toFixed(1)} Z`
+    : ''
 
   if (loading) {
     return (
@@ -314,55 +368,198 @@ export function Dashboard() {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* CGPA Hero Card */}
-        <div className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl p-8 mb-8 text-white shadow-lg">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
-              <p className="text-primary-100 text-sm font-medium mb-2">Overall CGPA</p>
-              <div className="flex items-center gap-4 mb-4">
-                <span className="text-6xl font-bold font-display">
-                  {cgpa > 0 ? cgpa.toFixed(2) : '—'}
-                </span>
-                {cgpa > 0 && (
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold bg-white/20`}>
-                    {badge.label}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-6 text-primary-100">
-                <div>
-                  <span className="text-2xl font-semibold text-white">{semesters.length}</span>
-                  <span className="text-sm ml-1">Semesters</span>
-                </div>
-                <div className="w-px h-8 bg-white/20"></div>
-                <div>
-                  <span className="text-2xl font-semibold text-white">{totalCredits}</span>
-                  <span className="text-sm ml-1">Total Credits</span>
-                </div>
-                <div className="w-px h-8 bg-white/20"></div>
-                <div>
-                  <span className="text-2xl font-semibold text-white">{totalSubjects}</span>
-                  <span className="text-sm ml-1">Subjects</span>
-                </div>
-              </div>
-            </div>
-            {sgpaValues.length > 0 && (
-              <div className="text-center">
-                <svg className="w-32 h-20" viewBox="0 0 120 80" fill="none">
-                  <polyline
-                    points={sgpaValues.map((sgpa, i) =>
-                      `${10 + (i * (100 / Math.max(sgpaValues.length - 1, 1)))},${70 - (sgpa * 6)}`
-                    ).join(' ')}
-                    stroke="rgba(255,255,255,0.6)"
-                    strokeWidth="2.5"
-                    fill="none"
+        {/* CGPA Hero Card with Glassmorphism & Micro-Gradients */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-900 rounded-3xl p-6 sm:p-8 mb-8 text-white shadow-xl shadow-primary-950/20 border border-white/10">
+          {/* Ambient glowing orbs */}
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+            {/* Left side: Circular Animated Gauge & Score Info */}
+            <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left w-full lg:w-auto">
+              {/* Radial Progress Ring */}
+              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+                <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 108 108">
+                  <defs>
+                    <linearGradient id="cgpaRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#38bdf8" />
+                      <stop offset="50%" stopColor="#818cf8" />
+                      <stop offset="100%" stopColor="#c084fc" />
+                    </linearGradient>
+                  </defs>
+                  {/* Track circle */}
+                  <circle
+                    cx="54"
+                    cy="54"
+                    r={gaugeRadius}
+                    stroke="rgba(255, 255, 255, 0.15)"
+                    strokeWidth="8"
+                    fill="transparent"
+                  />
+                  {/* Progress circle */}
+                  <circle
+                    cx="54"
+                    cy="54"
+                    r={gaugeRadius}
+                    stroke="url(#cgpaRingGradient)"
+                    strokeWidth="8"
+                    strokeDasharray={gaugeCircumference}
+                    strokeDashoffset={gaugeOffset}
                     strokeLinecap="round"
-                    strokeLinejoin="round"
+                    fill="transparent"
+                    className="transition-all duration-1000 ease-out"
                   />
                 </svg>
-                <p className="text-xs text-primary-100 mt-1">SGPA Trend</p>
+                {/* Center score display */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold font-display tracking-tight leading-none text-white drop-shadow-sm">
+                    {cgpa > 0 ? cgpa.toFixed(2) : '—'}
+                  </span>
+                  <span className="text-[10px] uppercase font-semibold text-primary-200 mt-0.5 tracking-wider">
+                    CGPA
+                  </span>
+                </div>
               </div>
-            )}
+
+              {/* Title & Badge */}
+              <div>
+                <p className="text-primary-200 text-xs font-semibold tracking-wider uppercase mb-1">
+                  Cumulative Academic Performance
+                </p>
+                <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold font-display text-white">
+                    {cgpa > 0 ? `${cgpa.toFixed(2)} CGPA` : 'No Grades Yet'}
+                  </h1>
+                </div>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
+                  {cgpa > 0 && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-xs">
+                      ✨ {badge.label}
+                    </span>
+                  )}
+                  <span className="text-xs text-primary-200/90 font-medium">
+                    Scale: 10.0
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-primary-100/80 max-w-sm">
+                  {cgpa >= 9
+                    ? 'Exceptional academic standing! First class with distinction.'
+                    : cgpa >= 7.5
+                    ? 'Strong and steady performance across completed semesters.'
+                    : cgpa > 0
+                    ? 'Keep pushing for higher grades in upcoming semesters.'
+                    : 'Click "Add Semester" to record your subjects and track your SGPA.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Right side: Frosted Glass Stats & Interactive SGPA Progression Chart */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto justify-end">
+              {/* Stat Tiles in Frosted Glass */}
+              <div className="grid grid-cols-3 sm:grid-cols-1 gap-2 w-full sm:w-auto shrink-0">
+                <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/15 shadow-xs flex items-center justify-between gap-4">
+                  <div className="text-xs text-primary-200">Semesters</div>
+                  <div className="text-base font-bold text-white">{semesters.length}</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/15 shadow-xs flex items-center justify-between gap-4">
+                  <div className="text-xs text-primary-200">Total Credits</div>
+                  <div className="text-base font-bold text-white">{totalCredits}</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/15 shadow-xs flex items-center justify-between gap-4">
+                  <div className="text-xs text-primary-200">Subjects</div>
+                  <div className="text-base font-bold text-white">{totalSubjects}</div>
+                </div>
+              </div>
+
+              {/* Interactive Trend Chart */}
+              {trendData.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 w-full sm:w-64 flex flex-col justify-between shadow-xs">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-primary-200">SGPA Trend</span>
+                    {hoveredTrendIdx !== null ? (
+                      <span className="text-xs font-bold text-cyan-300">
+                        {trendData[hoveredTrendIdx].label}: {trendData[hoveredTrendIdx].sgpa > 0 ? trendData[hoveredTrendIdx].sgpa.toFixed(2) : '—'}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-primary-300/80">Interactive</span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <svg className="w-full h-20" viewBox={`0 0 ${chartWidth} ${chartHeight}`} fill="none">
+                      <defs>
+                        <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.45" />
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Grid dashed baseline */}
+                      <line
+                        x1={padX}
+                        y1={chartHeight - padBottom}
+                        x2={chartWidth - padX}
+                        y2={chartHeight - padBottom}
+                        stroke="rgba(255,255,255,0.2)"
+                        strokeDasharray="3 3"
+                        strokeWidth="1"
+                      />
+
+                      {/* Area gradient under line */}
+                      {areaPath && (
+                        <path d={areaPath} fill="url(#trendAreaGradient)" />
+                      )}
+
+                      {/* Main trend line */}
+                      {linePath && (
+                        <path
+                          d={linePath}
+                          stroke="#38bdf8"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      )}
+
+                      {/* Interactive circles and label text */}
+                      {trendPoints.map((p, i) => (
+                        <g key={p.label}>
+                          {/* Outer glow ring for hovered point */}
+                          {hoveredTrendIdx === i && (
+                            <circle
+                              cx={p.x}
+                              cy={p.y}
+                              r="8"
+                              fill="rgba(56, 189, 248, 0.3)"
+                              className="animate-pulse"
+                            />
+                          )}
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={hoveredTrendIdx === i ? 5 : 3.5}
+                            fill="#ffffff"
+                            stroke="#38bdf8"
+                            strokeWidth={hoveredTrendIdx === i ? 3 : 2}
+                            className="cursor-pointer transition-all duration-200"
+                            onMouseEnter={() => setHoveredTrendIdx(i)}
+                            onMouseLeave={() => setHoveredTrendIdx(null)}
+                          />
+                          <text
+                            x={p.x}
+                            y={chartHeight - 4}
+                            textAnchor="middle"
+                            className="text-[9px] fill-primary-200 font-medium select-none pointer-events-none"
+                          >
+                            {p.label}
+                          </text>
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -385,24 +582,46 @@ export function Dashboard() {
             <p className="text-[rgb(var(--text-secondary))]">Click "Add Semester" to start tracking your grades.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {semesters.map(semester => {
               const sgpa = calculateSGPA(semester.subjects)
+              const semCredits = semester.subjects.reduce((sum, s) =>
+                s.grade === 'CP' || s.grade === 'Completed' ? sum : sum + s.credits, 0
+              )
               return (
-                <div key={semester.id} className="card">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{semester.label}</h3>
-                      <p className="text-sm text-[rgb(var(--text-secondary))]">
-                        SGPA: <span className="font-semibold text-[rgb(var(--text-primary))]">
-                          {sgpa > 0 ? sgpa.toFixed(2) : '—'}
-                        </span>
-                      </p>
+                <div
+                  key={semester.id}
+                  className="card hover:shadow-lg hover:border-primary-500/30 transition-all duration-300 group"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="text-lg font-bold font-display text-[rgb(var(--text-primary))]">
+                        Semester {semester.label}
+                      </h3>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        sgpa >= 9
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border dark:border-emerald-800/40'
+                          : sgpa >= 8
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:border dark:border-blue-800/40'
+                          : sgpa >= 7
+                          ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border dark:border-indigo-800/40'
+                          : sgpa > 0
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border dark:border-yellow-800/40'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                      }`}>
+                        SGPA: {sgpa > 0 ? sgpa.toFixed(2) : '—'}
+                      </span>
+                      <span className="text-xs text-[rgb(var(--text-secondary))] font-medium">
+                        • {semCredits} Credits
+                      </span>
+                      <span className="text-xs text-[rgb(var(--text-secondary))] font-medium">
+                        • {semester.subjects.length} Subjects
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
                       <button
                         onClick={() => openEditModal(semester)}
-                        className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition-colors"
+                        className="p-2 rounded-lg text-[rgb(var(--text-secondary))] hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors"
                         title="Edit Semester"
                         aria-label={`Edit ${semester.label}`}
                       >
@@ -410,7 +629,7 @@ export function Dashboard() {
                       </button>
                       <button
                         onClick={() => deleteSemester(semester.id)}
-                        className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
+                        className="p-2 rounded-lg text-[rgb(var(--text-secondary))] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
                         title="Delete Semester"
                         aria-label={`Delete ${semester.label}`}
                       >
@@ -435,19 +654,32 @@ export function Dashboard() {
                           <tr key={subject.id} className="border-b border-[rgb(var(--border))] last:border-0">
                             <td className="py-2 px-3 text-[rgb(var(--text-secondary))]">{idx + 1}</td>
                             <td className="py-2 px-3 font-medium">{subject.name}</td>
-                            <td className="py-2 px-3">{subject.credits}</td>
+                            <td className="py-2 px-3">
+                              {subject.grade === 'CP' || subject.grade === 'Completed' ? (
+                                <span className="font-semibold text-[rgb(var(--text-secondary))]">--</span>
+                              ) : (
+                                subject.credits
+                              )}
+                            </td>
                             <td className="py-2 px-3">
                               <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
                                 subject.grade === 'S' || subject.grade === 'A' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
                                 subject.grade === 'B' || subject.grade === 'C' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
                                 subject.grade === 'D' || subject.grade === 'E' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
                                 subject.grade === 'F' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                                subject.grade === 'CP' || subject.grade === 'Completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
                                 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                               }`}>
                                 {subject.grade || '—'}
                               </span>
                             </td>
-                            <td className="py-2 px-3">{subject.grade_points ?? '—'}</td>
+                            <td className="py-2 px-3">
+                              {subject.grade === 'CP' || subject.grade === 'Completed' ? (
+                                <span className="font-semibold text-[rgb(var(--text-secondary))]">--</span>
+                              ) : (
+                                subject.grade_points ?? '—'
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -519,20 +751,26 @@ export function Dashboard() {
                           />
                         </td>
                         <td className="py-2 px-2">
-                          <select
-                            value={subject.credits}
-                            onChange={(e) => updateModalSubject(idx, 'credits', parseFloat(e.target.value))}
-                            className="input-field text-sm py-1 w-20"
-                          >
-                            <option value={0.5}>0.5</option>
-                            <option value={1}>1</option>
-                            <option value={1.5}>1.5</option>
-                            <option value={2}>2</option>
-                            <option value={2.5}>2.5</option>
-                            <option value={3}>3</option>
-                            <option value={3.5}>3.5</option>
-                            <option value={4}>4</option>
-                          </select>
+                          {subject.grade === 'CP' || subject.grade === 'Completed' ? (
+                            <div className="input-field text-sm py-1 w-20 text-center text-[rgb(var(--text-secondary))] bg-[rgb(var(--bg-tertiary))] cursor-not-allowed select-none font-semibold">
+                              --
+                            </div>
+                          ) : (
+                            <select
+                              value={subject.credits}
+                              onChange={(e) => updateModalSubject(idx, 'credits', parseFloat(e.target.value))}
+                              className="input-field text-sm py-1 w-20"
+                            >
+                              <option value={0.5}>0.5</option>
+                              <option value={1}>1</option>
+                              <option value={1.5}>1.5</option>
+                              <option value={2}>2</option>
+                              <option value={2.5}>2.5</option>
+                              <option value={3}>3</option>
+                              <option value={3.5}>3.5</option>
+                              <option value={4}>4</option>
+                            </select>
+                          )}
                         </td>
                         <td className="py-2 px-2">
                           <select
@@ -542,23 +780,29 @@ export function Dashboard() {
                           >
                             <option value="">—</option>
                             {GRADE_OPTIONS.map(g => (
-                              <option key={g} value={g}>{g}</option>
+                              <option key={g} value={g}>{g === 'CP' ? 'CP (Completed)' : g}</option>
                             ))}
                           </select>
                         </td>
                         <td className="py-2 px-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={subject.grade_points ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                              updateModalSubject(idx, 'grade_points', isNaN(val as number) ? null : val)
-                            }}
-                            className="input-field text-sm py-1 w-20 text-center"
-                            placeholder="—"
-                          />
+                          {subject.grade === 'CP' || subject.grade === 'Completed' ? (
+                            <div className="input-field text-sm py-1 w-20 text-center text-[rgb(var(--text-secondary))] bg-[rgb(var(--bg-tertiary))] cursor-not-allowed select-none font-semibold">
+                              --
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={subject.grade_points ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                                updateModalSubject(idx, 'grade_points', isNaN(val as number) ? null : val)
+                              }}
+                              className="input-field text-sm py-1 w-20 text-center"
+                              placeholder="—"
+                            />
+                          )}
                         </td>
                         <td className="py-2 px-2">
                           <button

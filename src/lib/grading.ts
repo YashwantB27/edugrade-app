@@ -9,7 +9,7 @@ export const GRADE_POINTS: Record<string, number> = {
   'F': 0,
 }
 
-export const GRADE_OPTIONS = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'Completed']
+export const GRADE_OPTIONS = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'CP', 'Completed']
 
 export interface Subject {
   id: string
@@ -30,12 +30,13 @@ export interface Semester {
 /**
  * Calculate SGPA for a semester
  * Formula: SGPA = Σ(Credit × Grade Point) / Σ(Credits)
- * Excludes 'Completed' and 'F' grades from calculation
+ * Excludes 'Completed', 'CP' and 'F' grades from calculation
  */
 export function calculateSGPA(subjects: Subject[]): number {
   const graded = subjects.filter(s =>
     s.grade &&
     s.grade !== 'Completed' &&
+    s.grade !== 'CP' &&
     s.grade !== 'F' &&
     s.grade_points !== null
   )
