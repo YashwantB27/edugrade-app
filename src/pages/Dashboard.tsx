@@ -398,6 +398,7 @@ export function Dashboard() {
                             onChange={(e) => updateModalSubject(idx, 'credits', parseFloat(e.target.value))}
                             className="input-field text-sm py-1 w-20"
                           >
+                            <option value={0.5}>0.5</option>
                             <option value={1}>1</option>
                             <option value={1.5}>1.5</option>
                             <option value={2}>2</option>
