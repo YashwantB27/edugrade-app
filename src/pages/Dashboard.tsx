@@ -12,6 +12,7 @@ export function Dashboard() {
   const [showModal, setShowModal] = useState(false)
   const [selectedSemester, setSelectedSemester] = useState('')
   const [modalSubjects, setModalSubjects] = useState<Subject[]>([])
+  const [editingSemesterId, setEditingSemesterId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export function Dashboard() {
   }
 
   const openModal = () => {
+    setEditingSemesterId(null)
     setSelectedSemester('')
     setModalSubjects([
       ...Array(10).fill(null).map((_, i) => ({
@@ -78,6 +80,28 @@ export function Dashboard() {
       }))
     ])
     setShowModal(true)
+  }
+
+  const openEditModal = (semester: Semester) => {
+    setEditingSemesterId(semester.id)
+    setSelectedSemester(semester.label)
+    setModalSubjects(
+      semester.subjects.map(s => ({
+        id: s.id,
+        name: s.name,
+        credits: s.credits,
+        grade: s.grade,
+        grade_points: s.grade_points,
+      }))
+    )
+    setShowModal(true)
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingSemesterId(null)
+    setSelectedSemester('')
+    setModalSubjects([])
   }
 
   const addModalRow = () => {
@@ -100,6 +124,13 @@ export function Dashboard() {
     if (field === 'grade') {
       const gradePoints = value && value !== 'Completed' ? GRADE_POINTS[value] : null
       updated[index].grade_points = gradePoints
+    } else if (field === 'grade_points') {
+      if (value !== null) {
+        const matchedGrade = Object.entries(GRADE_POINTS).find(([_, pts]) => pts === value)?.[0]
+        if (matchedGrade && !updated[index].grade) {
+          updated[index].grade = matchedGrade
+        }
+      }
     }
 
     setModalSubjects(updated)
@@ -122,39 +153,120 @@ export function Dashboard() {
       return
     }
 
+    // Check for duplicate semester if creating or changing label
+    const duplicate = semesters.find(
+      s => s.label === selectedSemester && s.id !== editingSemesterId
+    )
+    if (duplicate) {
+      showToast(`Semester ${selectedSemester} already exists`)
+      return
+    }
+
     try {
       const [year, semNum] = selectedSemester.split('-').map(Number)
 
-      const { data: semData, error: semError } = await supabase
-        .from('semesters')
-        .insert({
+      if (editingSemesterId) {
+        // Update semester
+        const { error: semError } = await supabase
+          .from('semesters')
+          .update({
+            label: selectedSemester,
+            year,
+            semester_number: semNum,
+          })
+          .eq('id', editingSemesterId)
+
+        if (semError) throw semError
+
+        // Manage subjects for the edited semester
+        const originalSemester = semesters.find(s => s.id === editingSemesterId)
+        const originalSubjectIds = originalSemester ? originalSemester.subjects.map(s => s.id) : []
+
+        const currentExistingIds = validSubjects
+          .filter(s => !s.id.startsWith('new_'))
+          .map(s => s.id)
+
+        // Delete removed subjects
+        const idsToDelete = originalSubjectIds.filter(id => !currentExistingIds.includes(id))
+        if (idsToDelete.length > 0) {
+          const { error: delError } = await supabase
+            .from('subjects')
+            .delete()
+            .in('id', idsToDelete)
+
+          if (delError) throw delError
+        }
+
+        // Update existing subjects
+        const existingToUpdate = validSubjects.filter(s => !s.id.startsWith('new_'))
+        for (const s of existingToUpdate) {
+          const { error: updError } = await supabase
+            .from('subjects')
+            .update({
+              name: s.name.trim(),
+              credits: s.credits,
+              grade: s.grade,
+              grade_points: s.grade_points,
+            })
+            .eq('id', s.id)
+
+          if (updError) throw updError
+        }
+
+        // Insert new subjects
+        const newToInsert = validSubjects.filter(s => s.id.startsWith('new_'))
+        if (newToInsert.length > 0) {
+          const { error: insError } = await supabase
+            .from('subjects')
+            .insert(
+              newToInsert.map(s => ({
+                semester_id: editingSemesterId,
+                user_id: user.id,
+                name: s.name.trim(),
+                credits: s.credits,
+                grade: s.grade,
+                grade_points: s.grade_points,
+              }))
+            )
+
+          if (insError) throw insError
+        }
+
+        showToast('✅ Semester updated successfully!')
+      } else {
+        // Insert new semester
+        const { data: semData, error: semError } = await supabase
+          .from('semesters')
+          .insert({
+            user_id: user.id,
+            label: selectedSemester,
+            year,
+            semester_number: semNum,
+          })
+          .select()
+          .single()
+
+        if (semError) throw semError
+
+        const subjectsToInsert = validSubjects.map(s => ({
+          semester_id: semData.id,
           user_id: user.id,
-          label: selectedSemester,
-          year,
-          semester_number: semNum,
-        })
-        .select()
-        .single()
+          name: s.name.trim(),
+          credits: s.credits,
+          grade: s.grade,
+          grade_points: s.grade_points,
+        }))
 
-      if (semError) throw semError
+        const { error: subError } = await supabase
+          .from('subjects')
+          .insert(subjectsToInsert)
 
-      const subjectsToInsert = validSubjects.map(s => ({
-        semester_id: semData.id,
-        user_id: user.id,
-        name: s.name,
-        credits: s.credits,
-        grade: s.grade,
-        grade_points: s.grade_points,
-      }))
+        if (subError) throw subError
 
-      const { error: subError } = await supabase
-        .from('subjects')
-        .insert(subjectsToInsert)
+        showToast('✅ Semester saved successfully!')
+      }
 
-      if (subError) throw subError
-
-      showToast('✅ Semester saved successfully!')
-      setShowModal(false)
+      closeModal()
       loadSemesters()
     } catch (error: any) {
       showToast('Error saving semester: ' + error.message)
@@ -287,12 +399,24 @@ export function Dashboard() {
                         </span>
                       </p>
                     </div>
-                    <button
-                      onClick={() => deleteSemester(semester.id)}
-                      className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
-                    >
-                      🗑️
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditModal(semester)}
+                        className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition-colors"
+                        title="Edit Semester"
+                        aria-label={`Edit ${semester.label}`}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteSemester(semester.id)}
+                        className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
+                        title="Delete Semester"
+                        aria-label={`Delete ${semester.label}`}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -341,8 +465,10 @@ export function Dashboard() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[rgb(var(--bg-secondary))] rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-[rgb(var(--border))]">
-              <h3 className="text-xl font-semibold">Add Semester</h3>
-              <button onClick={() => setShowModal(false)} className="text-2xl hover:bg-[rgb(var(--bg-tertiary))] w-8 h-8 rounded-lg">
+              <h3 className="text-xl font-semibold">
+                {editingSemesterId ? `Edit Semester (${selectedSemester || 'Details'})` : 'Add Semester'}
+              </h3>
+              <button onClick={closeModal} className="text-2xl hover:bg-[rgb(var(--bg-tertiary))] w-8 h-8 rounded-lg">
                 ✕
               </button>
             </div>
@@ -420,7 +546,20 @@ export function Dashboard() {
                             ))}
                           </select>
                         </td>
-                        <td className="py-2 px-2 text-center">{subject.grade_points ?? '—'}</td>
+                        <td className="py-2 px-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={subject.grade_points ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                              updateModalSubject(idx, 'grade_points', isNaN(val as number) ? null : val)
+                            }}
+                            className="input-field text-sm py-1 w-20 text-center"
+                            placeholder="—"
+                          />
+                        </td>
                         <td className="py-2 px-2">
                           <button
                             onClick={() => deleteModalRow(idx)}
@@ -448,11 +587,11 @@ export function Dashboard() {
                 Computed SGPA: <strong className="text-lg">{modalSGPA > 0 ? modalSGPA.toFixed(2) : '—'}</strong>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost">
+                <button onClick={closeModal} className="btn-ghost">
                   Cancel
                 </button>
                 <button onClick={saveSemester} disabled={!selectedSemester} className="btn-primary">
-                  Save Semester
+                  {editingSemesterId ? 'Update Semester' : 'Save Semester'}
                 </button>
               </div>
             </div>
