@@ -5,7 +5,7 @@ import html2pdf from 'html2pdf.js'
 import { Navbar } from '../components/Navbar'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { calculateCGPA, calculateSGPA, getCGPABadge, calculateRequiredGrade, GRADE_OPTIONS, GRADE_POINTS } from '../lib/grading'
+import { calculateCGPA, calculateSGPA, getCGPABadge, calculateRequiredGrade, GRADE_POINTS } from '../lib/grading'
 import type { Semester, Subject } from '../lib/grading'
 
 export function Dashboard() {
@@ -441,13 +441,19 @@ export function Dashboard() {
       // Update existing subjects
       const existingToUpdate = validSubjects.filter(s => !s.id.startsWith('new_'))
       for (const s of existingToUpdate) {
+        const isCP = s.grade === 'CP' || s.grade === 'Completed'
+        const isF = s.grade === 'F'
+        const safeGrade = isCP ? 'Completed' : s.grade
+        const safeGradePoints = isCP ? null : (isF ? 0 : s.grade_points)
+        const safeCredits = (isCP || isF) ? 0 : s.credits
+
         const { error: updError } = await supabase
           .from('subjects')
           .update({
             name: s.name.trim(),
-            credits: s.credits,
-            grade: s.grade,
-            grade_points: s.grade_points,
+            credits: safeCredits,
+            grade: safeGrade,
+            grade_points: safeGradePoints,
           })
           .eq('id', s.id)
 
@@ -460,14 +466,18 @@ export function Dashboard() {
         const { error: insError } = await supabase
           .from('subjects')
           .insert(
-            newToInsert.map(s => ({
-              semester_id: targetSemesterId,
-              user_id: user.id,
-              name: s.name.trim(),
-              credits: s.credits,
-              grade: s.grade,
-              grade_points: s.grade_points,
-            }))
+            newToInsert.map(s => {
+              const isCP = s.grade === 'CP' || s.grade === 'Completed'
+              const isF = s.grade === 'F'
+              return {
+                semester_id: targetSemesterId,
+                user_id: user.id,
+                name: s.name.trim(),
+                credits: (isCP || isF) ? 0 : s.credits,
+                grade: isCP ? 'Completed' : s.grade,
+                grade_points: isCP ? null : (isF ? 0 : s.grade_points),
+              }
+            })
           )
 
         if (insError) throw insError
@@ -1389,7 +1399,7 @@ export function Dashboard() {
                                     ? 'bg-purple-50 text-purple-700 border border-purple-300/80 shadow-[0_0_8px_rgba(168,85,247,0.15)] dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60' :
                                     'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                                 }`}>
-                                  {subject.grade || '—'}
+                                  {subject.grade === 'Completed' ? 'CP' : (subject.grade || '—')}
                                 </span>
                               </td>
                               <td className="py-2 px-3">
@@ -1512,12 +1522,12 @@ export function Dashboard() {
                         </td>
                         <td className="py-2 px-2">
                           <select
-                            value={subject.grade || ''}
+                            value={subject.grade === 'Completed' ? 'CP' : (subject.grade || '')}
                             onChange={(e) => updateModalSubject(idx, 'grade', e.target.value || null)}
                             className="input-field text-sm py-1"
                           >
                             <option value="">—</option>
-                            {GRADE_OPTIONS.map(g => (
+                            {['S', 'A', 'B', 'C', 'D', 'E', 'F', 'CP'].map(g => (
                               <option key={g} value={g}>{g === 'CP' ? 'CP (Completed)' : g}</option>
                             ))}
                           </select>
@@ -1798,7 +1808,7 @@ export function Dashboard() {
                                 {sub.grade === 'CP' || sub.grade === 'Completed' ? '--' : sub.credits}
                               </td>
                               <td className="py-2 px-3 text-center font-bold">
-                                {sub.grade || '—'}
+                                {sub.grade === 'Completed' ? 'CP' : (sub.grade || '—')}
                               </td>
                               <td className="py-2 px-3 text-center font-semibold text-gray-700">
                                 {sub.grade === 'CP' || sub.grade === 'Completed' ? '--' : (sub.grade_points ?? '—')}
