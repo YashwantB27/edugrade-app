@@ -27,6 +27,34 @@ export function Dashboard() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [gradeFilter, setGradeFilter] = useState<'ALL' | 'DISTINCTION' | 'PASS' | 'CP' | 'BACKLOG'>('ALL')
+  const [isLateralEntry, setIsLateralEntry] = useState<boolean>(() => {
+    try { return localStorage.getItem('edugrade_lateral_entry') === 'true' } catch { return false }
+  })
+
+  const toggleLateralEntry = () => {
+    setIsLateralEntry(prev => {
+      const next = !prev
+      try { localStorage.setItem('edugrade_lateral_entry', String(next)) } catch {}
+      return next
+    })
+  }
+
+  // All available semester options (label stored in DB is the value, e.g. '2-1')
+  const ALL_SEMESTER_OPTIONS = [
+    { value: '1-1', label: '1st Year, 1st Sem (1-1)' },
+    { value: '1-2', label: '1st Year, 2nd Sem (1-2)' },
+    { value: '2-1', label: '2nd Year, 1st Sem (2-1)' },
+    { value: '2-2', label: '2nd Year, 2nd Sem (2-2)' },
+    { value: '3-1', label: '3rd Year, 1st Sem (3-1)' },
+    { value: '3-2', label: '3rd Year, 2nd Sem (3-2)' },
+    { value: '4-1', label: '4th Year, 1st Sem (4-1)' },
+    { value: '4-2', label: '4th Year, 2nd Sem (4-2)' },
+  ]
+
+  // Lateral entry students skip 1st year (1-1, 1-2)
+  const semesterOptions = isLateralEntry
+    ? ALL_SEMESTER_OPTIONS.filter(o => !o.value.startsWith('1-'))
+    : ALL_SEMESTER_OPTIONS
 
   useEffect(() => {
     if (user) {
@@ -1231,7 +1259,28 @@ export function Dashboard() {
             <h2 className="text-2xl font-display font-semibold text-[rgb(var(--text-primary))]">My Semesters</h2>
             <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">Click any semester header to expand or collapse details</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Lateral Entry Toggle */}
+            <button
+              onClick={toggleLateralEntry}
+              title={isLateralEntry ? 'Lateral Entry mode: ON (showing 2nd year onwards). Click to disable.' : 'Click to enable Lateral Entry mode (hides 1st year semesters)'}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-200 ${
+                isLateralEntry
+                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                  : 'bg-[rgb(var(--bg-tertiary))] border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))]'
+              }`}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+              <span className="hidden sm:inline">Lateral Entry</span>
+              <span className={`w-7 h-4 rounded-full flex items-center transition-colors duration-200 ${
+                isLateralEntry ? 'bg-amber-500 justify-end' : 'bg-[rgb(var(--border))] justify-start'
+              }`}>
+                <span className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+              </span>
+            </button>
+
             {semesters.length > 1 && (
               <button
                 onClick={toggleAllCollapse}
@@ -1451,16 +1500,12 @@ export function Dashboard() {
                   className="input-field"
                 >
                   <option value="">-- Choose Semester --</option>
-                  {[
-                    { value: '1-1', label: '1st Year, 1st Sem (1-1)' },
-                    { value: '1-2', label: '1st Year, 2nd Sem (1-2)' },
-                    { value: '2-1', label: '2nd Year, 1st Sem (2-1)' },
-                    { value: '2-2', label: '2nd Year, 2nd Sem (2-2)' },
-                    { value: '3-1', label: '3rd Year, 1st Sem (3-1)' },
-                    { value: '3-2', label: '3rd Year, 2nd Sem (3-2)' },
-                    { value: '4-1', label: '4th Year, 1st Sem (4-1)' },
-                    { value: '4-2', label: '4th Year, 2nd Sem (4-2)' },
-                  ].map(opt => {
+                  {isLateralEntry && (
+                    <option value="" disabled style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                      ── Lateral Entry: 1st year hidden ──
+                    </option>
+                  )}
+                  {semesterOptions.map(opt => {
                     const [y, s] = opt.value.split('-').map(Number)
                     const exists = semesters.some(sem => (sem.year === y && sem.semester_number === s) || sem.label === opt.value)
                     return (
