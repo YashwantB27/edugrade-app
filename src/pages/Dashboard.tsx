@@ -265,6 +265,9 @@ export function Dashboard() {
       if (value === 'CP' || value === 'Completed') {
         updated[index].credits = 0
         updated[index].grade_points = null
+      } else if (value === 'F') {
+        updated[index].credits = 0
+        updated[index].grade_points = 0
       } else {
         if (updated[index].credits === 0) {
           updated[index].credits = 3
@@ -287,7 +290,6 @@ export function Dashboard() {
   const deleteModalRow = (index: number) => {
     setModalSubjects(modalSubjects.filter((_, i) => i !== index))
   }
-
 
   const handleSemesterSelectChange = (newVal: string) => {
     setSelectedSemester(newVal)
@@ -339,7 +341,7 @@ export function Dashboard() {
     try {
       const [year, semNum] = selectedSemester.split('-').map(Number)
 
-      // Check if this semester already exists for this user (local state or Supabase)
+      // Resolve existing semester id if already present in state or Supabase
       let targetSemesterId = editingSemesterId
 
       if (!targetSemesterId) {
@@ -349,7 +351,6 @@ export function Dashboard() {
         if (localExisting) {
           targetSemesterId = localExisting.id
         } else {
-          // Check database directly to prevent duplicate key constraint violations
           const { data: dbExisting } = await supabase
             .from('semesters')
             .select('id')
@@ -364,84 +365,8 @@ export function Dashboard() {
         }
       }
 
-      if (targetSemesterId) {
-        // Update existing semester
-        const { error: semError } = await supabase
-          .from('semesters')
-          .update({
-            label: selectedSemester,
-            year,
-            semester_number: semNum,
-          })
-          .eq('id', targetSemesterId)
-
-        if (semError) throw semError
-
-        // Fetch current subject IDs from DB for this semester
-        const { data: currentDbSubs, error: subFetchErr } = await supabase
-          .from('subjects')
-          .select('id')
-          .eq('semester_id', targetSemesterId)
-
-        if (subFetchErr) throw subFetchErr
-
-        const originalSubjectIds = (currentDbSubs || []).map(s => s.id)
-        const currentExistingIds = validSubjects
-          .filter(s => !s.id.startsWith('new_'))
-          .map(s => s.id)
-
-        // Delete removed subjects
-        const idsToDelete = originalSubjectIds.filter(id => !currentExistingIds.includes(id))
-        if (idsToDelete.length > 0) {
-          const { error: delError } = await supabase
-            .from('subjects')
-            .delete()
-            .in('id', idsToDelete)
-
-          if (delError) throw delError
-        }
-
-        // Update existing subjects
-        const existingToUpdate = validSubjects.filter(s => !s.id.startsWith('new_'))
-        for (const s of existingToUpdate) {
-          const { error: updError } = await supabase
-            .from('subjects')
-            .update({
-              name: s.name.trim(),
-              credits: s.credits,
-              grade: s.grade,
-              grade_points: s.grade_points,
-            })
-            .eq('id', s.id)
-
-          if (updError) throw updError
-        }
-
-        // Insert new subjects
-        const newToInsert = validSubjects.filter(s => s.id.startsWith('new_'))
-        if (newToInsert.length > 0) {
-          const { error: insError } = await supabase
-            .from('subjects')
-            .insert(
-              newToInsert.map(s => ({
-                semester_id: targetSemesterId,
-                user_id: user.id,
-                name: s.name.trim(),
-                credits: s.credits,
-                grade: s.grade,
-                grade_points: s.grade_points,
-              }))
-            )
-
-          if (insError) throw insError
-        }
-
-        showToast('✅ Semester updated successfully!')
-        if (modalSGPA >= 8.5) {
-          triggerCelebration()
-        }
-      } else {
-        // Insert new semester
+      // If still no semester found, create new one with fallback for race conditions
+      if (!targetSemesterId) {
         const { data: semData, error: semError } = await supabase
           .from('semesters')
           .insert({
@@ -450,30 +375,107 @@ export function Dashboard() {
             year,
             semester_number: semNum,
           })
-          .select()
-          .single()
+          .select('id')
+          .maybeSingle()
 
-        if (semError) throw semError
+        if (semError) {
+          // If a duplicate key violation occurs, retrieve the conflicting semester id
+          const { data: fallbackDb } = await supabase
+            .from('semesters')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('year', year)
+            .eq('semester_number', semNum)
+            .maybeSingle()
 
-        const subjectsToInsert = validSubjects.map(s => ({
-          semester_id: semData.id,
-          user_id: user.id,
-          name: s.name.trim(),
-          credits: s.credits,
-          grade: s.grade,
-          grade_points: s.grade_points,
-        }))
-
-        const { error: subError } = await supabase
-          .from('subjects')
-          .insert(subjectsToInsert)
-
-        if (subError) throw subError
-
-        showToast('✅ Semester saved successfully!')
-        if (modalSGPA >= 8.5) {
-          triggerCelebration()
+          if (fallbackDb) {
+            targetSemesterId = fallbackDb.id
+          } else {
+            throw semError
+          }
+        } else if (semData) {
+          targetSemesterId = semData.id
         }
+      }
+
+      if (!targetSemesterId) {
+        throw new Error('Unable to initialize semester record')
+      }
+
+      // Update semester info
+      const { error: updSemErr } = await supabase
+        .from('semesters')
+        .update({
+          label: selectedSemester,
+          year,
+          semester_number: semNum,
+        })
+        .eq('id', targetSemesterId)
+
+      if (updSemErr) throw updSemErr
+
+      // Manage and sync subjects for targetSemesterId
+      const { data: currentDbSubs, error: subFetchErr } = await supabase
+        .from('subjects')
+        .select('id')
+        .eq('semester_id', targetSemesterId)
+
+      if (subFetchErr) throw subFetchErr
+
+      const originalSubjectIds = (currentDbSubs || []).map(s => s.id)
+      const currentExistingIds = validSubjects
+        .filter(s => !s.id.startsWith('new_'))
+        .map(s => s.id)
+
+      // Delete removed subjects
+      const idsToDelete = originalSubjectIds.filter(id => !currentExistingIds.includes(id))
+      if (idsToDelete.length > 0) {
+        const { error: delError } = await supabase
+          .from('subjects')
+          .delete()
+          .in('id', idsToDelete)
+
+        if (delError) throw delError
+      }
+
+      // Update existing subjects
+      const existingToUpdate = validSubjects.filter(s => !s.id.startsWith('new_'))
+      for (const s of existingToUpdate) {
+        const { error: updError } = await supabase
+          .from('subjects')
+          .update({
+            name: s.name.trim(),
+            credits: s.credits,
+            grade: s.grade,
+            grade_points: s.grade_points,
+          })
+          .eq('id', s.id)
+
+        if (updError) throw updError
+      }
+
+      // Insert new subjects
+      const newToInsert = validSubjects.filter(s => s.id.startsWith('new_'))
+      if (newToInsert.length > 0) {
+        const { error: insError } = await supabase
+          .from('subjects')
+          .insert(
+            newToInsert.map(s => ({
+              semester_id: targetSemesterId,
+              user_id: user.id,
+              name: s.name.trim(),
+              credits: s.credits,
+              grade: s.grade,
+              grade_points: s.grade_points,
+            }))
+          )
+
+        if (insError) throw insError
+      }
+
+      showToast('✅ Semester saved successfully!')
+      if (modalSGPA >= 8.5) {
+        triggerCelebration()
       }
 
       closeModal()
