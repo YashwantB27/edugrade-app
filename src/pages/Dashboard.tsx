@@ -288,6 +288,41 @@ export function Dashboard() {
     setModalSubjects(modalSubjects.filter((_, i) => i !== index))
   }
 
+
+  const handleSemesterSelectChange = (newVal: string) => {
+    setSelectedSemester(newVal)
+    if (!newVal) {
+      setEditingSemesterId(null)
+      return
+    }
+
+    const [y, s] = newVal.split('-').map(Number)
+    const existing = semesters.find(
+      sem => (sem.year === y && sem.semester_number === s) || sem.label === newVal
+    )
+
+    if (existing) {
+      setEditingSemesterId(existing.id)
+      const hasTypedAnySubject = modalSubjects.some(sub => sub.name.trim() !== '')
+      if (!hasTypedAnySubject && existing.subjects && existing.subjects.length > 0) {
+        setModalSubjects(
+          existing.subjects.map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            credits: sub.credits,
+            grade: sub.grade,
+            grade_points: sub.grade_points,
+          }))
+        )
+        showToast(`Loaded existing subjects for Semester ${existing.label}`)
+      }
+    } else {
+      if (!editingSemesterId || semesters.some(sem => sem.id === editingSemesterId && sem.label !== newVal)) {
+        setEditingSemesterId(null)
+      }
+    }
+  }
+
   const saveSemester = async () => {
     if (!user || !selectedSemester) {
       showToast('Please select a semester')
@@ -301,20 +336,36 @@ export function Dashboard() {
       return
     }
 
-    // Check for duplicate semester if creating or changing label
-    const duplicate = semesters.find(
-      s => s.label === selectedSemester && s.id !== editingSemesterId
-    )
-    if (duplicate) {
-      showToast(`Semester ${selectedSemester} already exists`)
-      return
-    }
-
     try {
       const [year, semNum] = selectedSemester.split('-').map(Number)
 
-      if (editingSemesterId) {
-        // Update semester
+      // Check if this semester already exists for this user (local state or Supabase)
+      let targetSemesterId = editingSemesterId
+
+      if (!targetSemesterId) {
+        const localExisting = semesters.find(
+          s => (s.year === year && s.semester_number === semNum) || s.label === selectedSemester
+        )
+        if (localExisting) {
+          targetSemesterId = localExisting.id
+        } else {
+          // Check database directly to prevent duplicate key constraint violations
+          const { data: dbExisting } = await supabase
+            .from('semesters')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('year', year)
+            .eq('semester_number', semNum)
+            .maybeSingle()
+
+          if (dbExisting) {
+            targetSemesterId = dbExisting.id
+          }
+        }
+      }
+
+      if (targetSemesterId) {
+        // Update existing semester
         const { error: semError } = await supabase
           .from('semesters')
           .update({
@@ -322,14 +373,19 @@ export function Dashboard() {
             year,
             semester_number: semNum,
           })
-          .eq('id', editingSemesterId)
+          .eq('id', targetSemesterId)
 
         if (semError) throw semError
 
-        // Manage subjects for the edited semester
-        const originalSemester = semesters.find(s => s.id === editingSemesterId)
-        const originalSubjectIds = originalSemester ? originalSemester.subjects.map(s => s.id) : []
+        // Fetch current subject IDs from DB for this semester
+        const { data: currentDbSubs, error: subFetchErr } = await supabase
+          .from('subjects')
+          .select('id')
+          .eq('semester_id', targetSemesterId)
 
+        if (subFetchErr) throw subFetchErr
+
+        const originalSubjectIds = (currentDbSubs || []).map(s => s.id)
         const currentExistingIds = validSubjects
           .filter(s => !s.id.startsWith('new_'))
           .map(s => s.id)
@@ -368,7 +424,7 @@ export function Dashboard() {
             .from('subjects')
             .insert(
               newToInsert.map(s => ({
-                semester_id: editingSemesterId,
+                semester_id: targetSemesterId,
                 user_id: user.id,
                 name: s.name.trim(),
                 credits: s.credits,
@@ -1379,18 +1435,28 @@ export function Dashboard() {
                 <label className="block text-sm font-medium mb-1.5">Select Semester</label>
                 <select
                   value={selectedSemester}
-                  onChange={(e) => setSelectedSemester(e.target.value)}
+                  onChange={(e) => handleSemesterSelectChange(e.target.value)}
                   className="input-field"
                 >
                   <option value="">-- Choose Semester --</option>
-                  <option value="1-1">1st Year, 1st Sem (1-1)</option>
-                  <option value="1-2">1st Year, 2nd Sem (1-2)</option>
-                  <option value="2-1">2nd Year, 1st Sem (2-1)</option>
-                  <option value="2-2">2nd Year, 2nd Sem (2-2)</option>
-                  <option value="3-1">3rd Year, 1st Sem (3-1)</option>
-                  <option value="3-2">3rd Year, 2nd Sem (3-2)</option>
-                  <option value="4-1">4th Year, 1st Sem (4-1)</option>
-                  <option value="4-2">4th Year, 2nd Sem (4-2)</option>
+                  {[
+                    { value: '1-1', label: '1st Year, 1st Sem (1-1)' },
+                    { value: '1-2', label: '1st Year, 2nd Sem (1-2)' },
+                    { value: '2-1', label: '2nd Year, 1st Sem (2-1)' },
+                    { value: '2-2', label: '2nd Year, 2nd Sem (2-2)' },
+                    { value: '3-1', label: '3rd Year, 1st Sem (3-1)' },
+                    { value: '3-2', label: '3rd Year, 2nd Sem (3-2)' },
+                    { value: '4-1', label: '4th Year, 1st Sem (4-1)' },
+                    { value: '4-2', label: '4th Year, 2nd Sem (4-2)' },
+                  ].map(opt => {
+                    const [y, s] = opt.value.split('-').map(Number)
+                    const exists = semesters.some(sem => (sem.year === y && sem.semester_number === s) || sem.label === opt.value)
+                    return (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} {exists ? '• (Already Added)' : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
