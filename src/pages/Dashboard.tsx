@@ -37,6 +37,8 @@ export function Dashboard() {
 
   const [showScanner, setShowScanner] = useState(false)
   const [showBacklogSimulator, setShowBacklogSimulator] = useState(false)
+  const [showPlacementHub, setShowPlacementHub] = useState(false)
+  const [placementCategoryFilter, setPlacementCategoryFilter] = useState<'ALL' | 'IT Services' | 'Product / Differential' | 'Core & PSU' | 'Higher Studies'>('ALL')
   const [simulatedBacklogGrades, setSimulatedBacklogGrades] = useState<Record<string, { grade: Grade; credits: number }>>({})
   const [isApplyingBacklogs, setIsApplyingBacklogs] = useState(false)
 
@@ -667,6 +669,140 @@ export function Dashboard() {
     ? gradedSemesters.reduce((min, s) => s.sgpa < min.sgpa ? s : min, gradedSemesters[0])
     : null
 
+  // ── Placement & Higher Studies Criteria ─────────────────────────
+  const PLACEMENT_CRITERIA = [
+    {
+      id: 'tcs_ninja',
+      name: 'TCS Ninja',
+      category: 'IT Services' as const,
+      role: 'Assistant System Engineer',
+      minCGPA: 6.0,
+      maxBacklogs: 1,
+      packageLPA: '3.36 - 3.6 LPA',
+      details: '60% or 6.0 CGPA throughout 10th, 12th, and B.Tech. Max 1 active backlog permitted during online test.',
+    },
+    {
+      id: 'tcs_digital',
+      name: 'TCS Digital / Prime',
+      category: 'Product / Differential' as const,
+      role: 'Systems Engineer / Prime Dev',
+      minCGPA: 7.0,
+      maxBacklogs: 0,
+      packageLPA: '7.0 - 9.0 LPA',
+      details: '7.0+ CGPA with zero active backlogs. Requires clearing advanced coding test.',
+    },
+    {
+      id: 'infosys_ses',
+      name: 'Infosys (SE & DSE)',
+      category: 'IT Services' as const,
+      role: 'Systems Engineer / Specialist',
+      minCGPA: 6.0,
+      maxBacklogs: 0,
+      packageLPA: '3.6 - 6.25 LPA',
+      details: '60% or 6.0 CGPA minimum across all semesters. No active backlogs at time of selection.',
+    },
+    {
+      id: 'infosys_sp',
+      name: 'Infosys SP (Power Programmer)',
+      category: 'Product / Differential' as const,
+      role: 'Specialist Programmer',
+      minCGPA: 7.0,
+      maxBacklogs: 0,
+      packageLPA: '9.5 LPA',
+      details: 'HackWithInfy / InfyTQ qualifier, 7.0+ CGPA, strictly 0 backlogs.',
+    },
+    {
+      id: 'wipro_elite',
+      name: 'Wipro Elite & Turbo',
+      category: 'IT Services' as const,
+      role: 'Project Engineer',
+      minCGPA: 6.0,
+      maxBacklogs: 1,
+      packageLPA: '3.5 - 6.5 LPA',
+      details: '60% aggregate. Max 1 active backlog permitted during assessment.',
+    },
+    {
+      id: 'accenture_ase',
+      name: 'Accenture (ASE & FSE)',
+      category: 'IT Services' as const,
+      role: 'Associate Software Engineer',
+      minCGPA: 6.5,
+      maxBacklogs: 0,
+      packageLPA: '4.5 - 6.5 LPA',
+      details: '6.5 CGPA (65%) minimum with 0 active backlogs during onboarding.',
+    },
+    {
+      id: 'cognizant_gen_c',
+      name: 'Cognizant (GenC & Next)',
+      category: 'IT Services' as const,
+      role: 'Programmer Analyst Trainee',
+      minCGPA: 6.0,
+      maxBacklogs: 0,
+      packageLPA: '4.0 - 6.75 LPA',
+      details: '60% / 6.0 CGPA or above throughout education. Zero backlogs.',
+    },
+    {
+      id: 'amazon_sde',
+      name: 'Amazon / Microsoft / Oracle',
+      category: 'Product / Differential' as const,
+      role: 'Software Development Engineer (SDE-1)',
+      minCGPA: 7.0,
+      maxBacklogs: 0,
+      packageLPA: '16.0 - 44.0 LPA',
+      details: '7.0+ CGPA or First Class. Zero backlogs, high DSA proficiency required.',
+    },
+    {
+      id: 'cisco_zoho',
+      name: 'Cisco / Zoho / Tech Unicorns',
+      category: 'Product / Differential' as const,
+      role: 'Software Engineer',
+      minCGPA: 7.5,
+      maxBacklogs: 0,
+      packageLPA: '8.5 - 24.0 LPA',
+      details: '7.5+ CGPA preferred by on-campus recruitment cells, zero pending backlogs.',
+    },
+    {
+      id: 'gate_psu',
+      name: 'PSUs via GATE (IOCL, ONGC, ISRO)',
+      category: 'Core & PSU' as const,
+      role: 'Graduate Executive Trainee',
+      minCGPA: 6.5,
+      maxBacklogs: 0,
+      packageLPA: '12.0 - 18.0 LPA',
+      details: '65% or 6.84 CGPA (General/OBC) or 60% (SC/ST). Degree must be completed with 0 backlogs.',
+    },
+    {
+      id: 'ms_abroad_us',
+      name: 'MS in USA / Canada / UK',
+      category: 'Higher Studies' as const,
+      role: 'Master of Science (Graduate School)',
+      minCGPA: 6.5,
+      maxBacklogs: 0,
+      packageLPA: 'Top 100 Universities',
+      details: '3.0+ / 4.0 US equivalent GPA (approx. 6.5+ CGPA in India). WES evaluated.',
+    },
+    {
+      id: 'ms_abroad_germany',
+      name: 'MS in Germany (Public TU9 Universities)',
+      category: 'Higher Studies' as const,
+      role: 'M.Sc (Tuition-Free Universities)',
+      minCGPA: 7.5,
+      maxBacklogs: 0,
+      packageLPA: 'Free Tuition / World Top 150',
+      details: 'Requires German grade <= 2.5 (Bavarian formula, approx 7.5+ Indian CGPA). Strictly 0 backlogs.',
+    },
+  ]
+
+  // Calculated US GPA & German Grade estimates
+  const estimatedUSGPA = Math.min(4.0, Math.max(1.0, (cgpa / 10) * 4.0)).toFixed(2)
+  const estimatedGermanGrade = cgpa >= 5
+    ? (1 + 3 * ((10 - Math.min(10, cgpa)) / 5)).toFixed(2)
+    : '5.00'
+
+  const eligibleCompaniesCount = PLACEMENT_CRITERIA.filter(
+    c => cgpa >= c.minCGPA && totalBacklogs <= c.maxBacklogs
+  ).length
+
   // Backlog and Supplementary Simulator computations
   const backlogList = semesters.flatMap(sem =>
     sem.subjects
@@ -1042,6 +1178,28 @@ export function Dashboard() {
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
               <button
                 onClick={() => {
+                  setShowPlacementHub(prev => !prev)
+                  if (!showPlacementHub) {
+                    setShowSimulator(false)
+                    setShowAnalytics(false)
+                    setShowBacklogSimulator(false)
+                  }
+                }}
+                className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  showPlacementHub
+                    ? 'bg-primary-600 text-white shadow-xs'
+                    : 'btn-secondary hover:border-primary-500 hover:text-primary-400'
+                }`}
+                title="Check your eligibility for campus placements, product companies, PSUs, and MS abroad"
+              >
+                <span>💼</span>
+                <span>Placement & MS Hub</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary-500/20 text-primary-400">
+                  {eligibleCompaniesCount}/{PLACEMENT_CRITERIA.length}
+                </span>
+              </button>
+              <button
+                onClick={() => {
                   setShowBacklogSimulator(prev => !prev)
                   if (!showBacklogSimulator) {
                     setShowSimulator(false)
@@ -1219,7 +1377,172 @@ export function Dashboard() {
             </div>
           )}
 
-{/* Backlog & Supplementary Clearance Simulator Panel */}
+{/* Placement & Higher Education Eligibility Hub Panel */}
+          {showPlacementHub && (
+            <div className="mt-6 pt-6 border-t border-[rgb(var(--border))] transition-all duration-300">
+              <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💼</span>
+                    <h4 className="text-base font-bold font-display text-[rgb(var(--text-primary))]">
+                      Placement & Higher Education Eligibility Hub
+                    </h4>
+                  </div>
+                  <p className="text-xs text-[rgb(var(--text-secondary))]">
+                    Instant eligibility audit across Tier-1 IT, Product Companies, PSUs, and MS Abroad based on your current CGPA and backlogs.
+                  </p>
+                </div>
+
+                {/* International Conversion Badges */}
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                  <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] text-center">
+                    <span className="text-[10px] uppercase font-bold text-[rgb(var(--text-secondary))] block">
+                      US GPA (4.0)
+                    </span>
+                    <span className="text-sm font-extrabold font-display text-primary-500">
+                      {cgpa > 0 ? `${estimatedUSGPA} / 4.0` : '—'}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] text-center">
+                    <span className="text-[10px] uppercase font-bold text-[rgb(var(--text-secondary))] block">
+                      German Grade
+                    </span>
+                    <span className="text-sm font-extrabold font-display text-emerald-500">
+                      {cgpa >= 5 ? `${estimatedGermanGrade}` : '—'}
+                    </span>
+                    <span className="text-[8px] text-[rgb(var(--text-secondary))] block">1.0 is best</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Stats Banner */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-primary-500/10 via-[rgb(var(--bg-tertiary))] to-rose-500/10 border border-primary-500/20 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-lg shadow-md shrink-0">
+                    🎯
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-sm text-[rgb(var(--text-primary))] font-display">
+                      You Qualify for {eligibleCompaniesCount} of {PLACEMENT_CRITERIA.length} Placement & Study Pathways!
+                    </h5>
+                    <p className="text-xs text-[rgb(var(--text-secondary))]">
+                      Academic Standing: <strong>{getCGPABadge(cgpa).label}</strong> • {totalBacklogs === 0 ? '✨ 0 Active Arrears' : `⚠️ ${totalBacklogs} Active Backlog(s)`} • {totalCredits} Credits Earned
+                    </p>
+                  </div>
+                </div>
+
+                {totalBacklogs > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlacementHub(false)
+                      setShowBacklogSimulator(true)
+                    }}
+                    className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 self-start sm:self-auto shrink-0 shadow-xs"
+                  >
+                    <span>🔁</span> Clear Backlogs Simulator
+                  </button>
+                )}
+              </div>
+
+              {/* Category Filter Tabs */}
+              <div className="flex flex-wrap gap-1.5 mb-4 border-b border-[rgb(var(--border))] pb-2.5">
+                {(['ALL', 'IT Services', 'Product / Differential', 'Core & PSU', 'Higher Studies'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setPlacementCategoryFilter(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      placementCategoryFilter === cat
+                        ? 'bg-primary-600 text-white shadow-xs'
+                        : 'bg-[rgb(var(--bg-tertiary))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))]'
+                    }`}
+                  >
+                    {cat === 'ALL' ? 'All Roles & Pathways' : cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Companies Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {PLACEMENT_CRITERIA
+                  .filter(c => placementCategoryFilter === 'ALL' || c.category === placementCategoryFilter)
+                  .map(comp => {
+                    const meetsCGPA = cgpa >= comp.minCGPA
+                    const meetsBacklogs = totalBacklogs <= comp.maxBacklogs
+                    const isFullyEligible = meetsCGPA && meetsBacklogs
+                    const cgpaGap = Math.max(0, comp.minCGPA - cgpa)
+
+                    return (
+                      <div
+                        key={comp.id}
+                        className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                          isFullyEligible
+                            ? 'bg-[rgb(var(--bg-primary))] border-emerald-500/30 hover:border-emerald-500/60 shadow-xs'
+                            : 'bg-[rgb(var(--bg-primary))] border-[rgb(var(--border))] opacity-90'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-primary-500">
+                                {comp.category}
+                              </span>
+                              <h5 className="font-bold text-sm text-[rgb(var(--text-primary))]">
+                                {comp.name}
+                              </h5>
+                              <p className="text-xs text-[rgb(var(--text-secondary))] font-medium">
+                                {comp.role}
+                              </p>
+                            </div>
+
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                              isFullyEligible
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                : !meetsBacklogs
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                            }`}>
+                              {isFullyEligible ? 'Eligible ✅' : !meetsBacklogs ? 'Arrears Block ⚠️' : `Need +${cgpaGap.toFixed(2)}`}
+                            </span>
+                          </div>
+
+                          <div className="mt-2.5 mb-2 flex items-center justify-between text-xs">
+                            <span className="text-[rgb(var(--text-secondary))] font-semibold">
+                              Est. Package: <strong className="text-emerald-600 dark:text-emerald-400">{comp.packageLPA}</strong>
+                            </span>
+                            <span className="text-[11px] text-[rgb(var(--text-secondary))]">
+                              Min: <strong>{comp.minCGPA.toFixed(1)} CGPA</strong>
+                            </span>
+                          </div>
+
+                          {/* Progress bar towards cutoff */}
+                          <div className="w-full bg-[rgb(var(--bg-tertiary))] h-1.5 rounded-full overflow-hidden mb-2">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isFullyEligible ? 'bg-emerald-500' : 'bg-primary-500'
+                              }`}
+                              style={{ width: `${Math.min(100, Math.max(10, (cgpa / comp.minCGPA) * 100))}%` }}
+                            />
+                          </div>
+
+                          <p className="text-[11px] text-[rgb(var(--text-secondary))] leading-relaxed">
+                            {comp.details}
+                          </p>
+                        </div>
+
+                        <div className="mt-3 pt-2.5 border-t border-[rgb(var(--border))] flex items-center justify-between text-[10px] text-[rgb(var(--text-secondary))]">
+                          <span>Max Backlogs Allowed: {comp.maxBacklogs}</span>
+                          <span>{isFullyEligible ? '🎯 Ready to Apply' : '📈 Plan Next Semester'}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Backlog & Supplementary Clearance Simulator Panel */}
           {showBacklogSimulator && (
             <div className="mt-6 pt-6 border-t border-[rgb(var(--border))] transition-all duration-300">
               <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
