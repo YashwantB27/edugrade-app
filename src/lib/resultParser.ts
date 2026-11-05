@@ -37,6 +37,7 @@ export type OcrProgressCallback = (pct: number, status: string) => void
 
 // ── Grade normalisation map ───────────────────────────────────
 const GRADE_ALIASES: Record<string, Grade> = {
+  // Outstanding / 10 points
   'O': 'S',
   'O+': 'S',
   'OUTSTANDING': 'S',
@@ -44,34 +45,63 @@ const GRADE_ALIASES: Record<string, Grade> = {
   'EXCELLENT': 'S',
   'S+': 'S',
   'S': 'S',
+  '10': 'S',
+  '10.0': 'S',
+
+  // A grade / 9 points (or 8 in R20, mapped to standard 10-pt)
   'A+': 'A',
   'A': 'A',
   'A1': 'A',
   'VERY GOOD': 'A',
+  '9': 'A',
+  '9.0': 'A',
+
+  // B grade / 8 points
   'B+': 'B',
   'B': 'B',
   'B1': 'B',
   'GOOD': 'B',
+  '8': 'B',
+  '8.0': 'B',
+
+  // C grade / 7 points
   'C+': 'C',
   'C': 'C',
   'C1': 'C',
   'FAIR': 'C',
+  'ABOVE AVERAGE': 'C',
+  '7': 'C',
+  '7.0': 'C',
+
+  // D grade / 6 points
   'D+': 'D',
   'D': 'D',
   'D1': 'D',
   'AVERAGE': 'D',
+  '6': 'D',
+  '6.0': 'D',
+
+  // E grade / Pass / 5 points
   'E+': 'E',
   'E': 'E',
   'E1': 'E',
   'PASS': 'E',
   'PASSED': 'E',
   'P': 'E',
+  '5': 'E',
+  '5.0': 'E',
+
+  // Fail / 0 points
   'FAIL': 'F',
   'FAILED': 'F',
   'F': 'F',
   'AB': 'F',
   'ABSENT': 'F',
   'NA': 'F',
+  '0': 'F',
+  '0.0': 'F',
+
+  // Audit / CP courses
   'CP': 'CP',
   'COMPLETED': 'Completed',
   'AUDIT': 'Completed',
@@ -79,15 +109,32 @@ const GRADE_ALIASES: Record<string, Grade> = {
   'SATISFACTORY': 'Completed',
 }
 
-function normaliseGrade(raw: string): Grade | null {
+export function normaliseGrade(raw: string): Grade | null {
   const clean = (raw || '').trim().toUpperCase().replace(/[.,;:()]/g, '')
-  return GRADE_ALIASES[clean] ?? null
+  if (GRADE_ALIASES[clean]) {
+    return GRADE_ALIASES[clean]
+  }
+
+  // Marks to grade conversion (if a percentage / marks number is passed)
+  const num = parseFloat(clean)
+  if (!isNaN(num) && /^\d{2,3}(\.\d+)?$/.test(clean)) {
+    if (num >= 90) return 'S'
+    if (num >= 80) return 'A'
+    if (num >= 70) return 'B'
+    if (num >= 60) return 'C'
+    if (num >= 50) return 'D'
+    if (num >= 40) return 'E'
+    return 'F'
+  }
+
+  return null
 }
 
-function gradeToPoints(grade: Grade | null): number | null {
-  if (!grade || grade === 'F' || grade === 'CP' || grade === 'Completed') {
-    return grade === 'F' ? 0 : null
+export function gradeToPoints(grade: Grade | null): number | null {
+  if (!grade || grade === 'CP' || grade === 'Completed') {
+    return null
   }
+  if (grade === 'F') return 0
   return GRADE_POINTS[grade] ?? null
 }
 
@@ -118,13 +165,13 @@ export function detectSemesterLabel(text: string): string | undefined {
 // ── Smart Line Parser (Indian & International Marksheet formats) ───
 export function smartParseLine(rawLine: string): ParsedSubject | null {
   let line = rawLine.trim()
-  if (line.length < 4) return null
+  if (line.length < 3) return null
 
   // Skip headers, metadata, and summary lines
-  if (/^(s\.?no|sl\.?no|sub\.?code|subject\s*code|course\s*code|subject\s*name|course\s*name|credits?|grade|marks|total|sgpa|cgpa|result|status|registered|earned|roll|hall\s*ticket|htno|student\s*name|regulation)\b/i.test(line)) {
+  if (/^(s\.?no|sl\.?no|sub\.?code|subject\s*code|course\s*code|subject\s*name|course\s*name|credits?|grade|marks|total|sgpa|cgpa|result|status|registered|earned|roll|hall\s*ticket|htno|student\s*name|regulation|college\s*code|ccode)\b/i.test(line)) {
     return null
   }
-  if (/^(sgpa|cgpa|total\s*credits?|grand\s*total|result\s*:|passed|failed|promoted|overall)/i.test(line)) {
+  if (/^(sgpa|cgpa|total\s*credits?|grand\s*total|result\s*:|passed|failed|promoted|overall|controller\s*of\s*examinations)/i.test(line)) {
     return null
   }
 
@@ -141,13 +188,40 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
   let gradeIndex = -1
   let gradeValue: Grade | null = null
 
+  // First pass: look for explicit letter grades or CP
   for (let i = tokens.length - 1; i >= 0; i--) {
     const t = tokens[i].toUpperCase().replace(/[.,;:()]/g, '')
+    // Skip if it's just 'P' or 'PASS' if there might be another letter grade earlier
+    if (['PASS', 'PASSED', 'P'].includes(t)) continue
     const matched = normaliseGrade(t)
     if (matched) {
       gradeIndex = i
       gradeValue = matched
       break
+    }
+  }
+
+  // Second pass: if no grade found, check if last tokens have 'PASS', 'FAIL', or marks (40-100)
+  if (!gradeValue) {
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const t = tokens[i].toUpperCase().replace(/[.,;:()]/g, '')
+      const matched = normaliseGrade(t)
+      if (matched) {
+        gradeIndex = i
+        gradeValue = matched
+        break
+      }
+    }
+  }
+
+  // OCR typo fix: If token is '0' (digit zero) and next token is credits (e.g. '3'), '0' is letter 'O' (Outstanding)
+  if (!gradeValue) {
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (tokens[i] === '0' && /^\d(\.(0|5))?$/.test(tokens[i + 1])) {
+        gradeIndex = i
+        gradeValue = 'S' // O grade -> S
+        break
+      }
     }
   }
 
@@ -159,7 +233,6 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
     if (i === gradeIndex) continue
     const t = tokens[i].replace(/[.,;:()]/g, '')
     const num = parseFloat(t)
-    // Credits in university marksheets are between 0 and 6, often ending in .0 or .5
     if (!isNaN(num) && num >= 0 && num <= 6 && /^\d(\.(0|5))?$/.test(t)) {
       creditsIndex = i
       creditsValue = num
@@ -194,7 +267,7 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
     // Skip if it looks like marks (e.g. 25, 75, 100, 40) or grade points
     if (/^\d{1,3}(\.\d+)?$/.test(t) && parseFloat(t) >= 7) continue
     // Skip status words
-    if (['PASS', 'FAIL', 'PASSED', 'FAILED', 'REGULAR', 'SUPPLEMENTARY', 'P', 'REM'].includes(upper)) continue
+    if (['PASS', 'FAIL', 'PASSED', 'FAILED', 'REGULAR', 'SUPPLEMENTARY', 'P', 'REM', 'COMP'].includes(upper)) continue
     nameTokens.push(t)
   }
 
@@ -208,7 +281,7 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
 
   const gp = (gradeValue === 'CP' || gradeValue === 'Completed')
     ? null
-    : (gradeValue === 'F' ? 0 : gradeToPoints(gradeValue))
+    : (gradeValue === 'F' ? 0 : (gradeValue ? gradeToPoints(gradeValue) : null))
 
   return {
     name: subjectName,
@@ -218,13 +291,29 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
   }
 }
 
-// ── Smart Raw Text Parser (Line-by-line + Regex Heuristic) ────
+// ── Smart Raw Text Parser with Multi-Line Merging ────────────
 export function parseRawText(text: string): ParseResult {
   const subjects: ParsedSubject[] = []
   const warnings: string[] = []
-  const lines = text.split(/\r?\n/)
+  const rawLines = text.split(/\r?\n/)
 
-  for (const line of lines) {
+  // Pre-pass: merge lines if a subject name line is split from its grade/credit line
+  const mergedLines: string[] = []
+  for (let i = 0; i < rawLines.length; i++) {
+    const cur = rawLines[i].trim()
+    if (!cur) continue
+    const next = (rawLines[i + 1] || '').trim()
+
+    // If next line is short (e.g. "A 3.0" or "S 3" or "COMPLETED 0")
+    if (next && /^[A-Za-z0-9+]{1,10}\s+(\d(?:\.\d)?)$/.test(next)) {
+      mergedLines.push(cur + ' ' + next)
+      i++ // skip next
+    } else {
+      mergedLines.push(cur)
+    }
+  }
+
+  for (const line of mergedLines) {
     const parsed = smartParseLine(line)
     if (parsed) {
       const exists = subjects.some(s => s.name.toLowerCase() === parsed.name.toLowerCase())
@@ -237,7 +326,7 @@ export function parseRawText(text: string): ParseResult {
   const detectedSemester = detectSemesterLabel(text)
 
   if (subjects.length === 0) {
-    warnings.push('No subjects detected. Please verify the format or paste the text directly.')
+    warnings.push('No subjects detected. Please verify the format or edit the text directly.')
   }
 
   return { subjects, detectedSemester, warnings, rawText: text }
@@ -266,7 +355,7 @@ async function parseExcel(file: File): Promise<ParseResult> {
       const rowStr = rows[r].map((c: any) => String(c).toLowerCase().trim())
       const nameI   = rowStr.findIndex((c: string) => /subject|course|paper|title/i.test(c))
       const crI     = rowStr.findIndex((c: string) => /credit|cr\b/i.test(c))
-      const gradeI  = rowStr.findIndex((c: string) => /\bgrade\b|\bgrd\b/i.test(c))
+      const gradeI  = rowStr.findIndex((c: string) => /\bgrade\b|\bgrd\b|\bresult\b/i.test(c))
       const gpI     = rowStr.findIndex((c: string) => /grade\s*point|gp\b|g\.p/i.test(c))
 
       if (nameI >= 0) {
@@ -290,7 +379,7 @@ async function parseExcel(file: File): Promise<ParseResult> {
       const row = rows[r]
       const rawName = String(row[nameCol] ?? '').trim()
       if (!rawName || rawName.length < 2) continue
-      if (/^(total|sgpa|cgpa|result|pass|fail|grand|status)$/i.test(rawName)) continue
+      if (/^(total|sgpa|cgpa|result|pass|fail|grand|status|s\.no|sl\.no)$/i.test(rawName)) continue
 
       const rawCredits = parseFloat(String(row[creditsCol] ?? ''))
       const rawGrade   = String(row[gradeCol] ?? '').trim()
@@ -307,7 +396,7 @@ async function parseExcel(file: File): Promise<ParseResult> {
         name: rawName,
         credits: (isCP || isF) ? 0 : credits,
         grade,
-        grade_points: isCP ? null : (isF ? 0 : gp),
+        grade_points: isCP ? null : (isF ? 0 : (grade ? gradeToPoints(grade) : gp)),
       })
     }
   }
@@ -357,7 +446,7 @@ async function parsePDF(file: File, onProgress?: OcrProgressCallback): Promise<P
       return digitalResult
     }
 
-    // Scanned PDF fallback: render page 1 to canvas and OCR
+    // Scanned PDF fallback
     onProgress?.(50, 'Scanned PDF detected. Running OCR…')
     const firstPage = await pdfDoc.getPage(1)
     const viewport = firstPage.getViewport({ scale: 2.0 })

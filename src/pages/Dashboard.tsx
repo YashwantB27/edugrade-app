@@ -37,14 +37,16 @@ export function Dashboard() {
 
   const applyScannedResult = (parsed: ParseResult) => {
     const rows = parsed.subjects.map((s, i) => {
-      const isCP = s.grade === 'CP'
+      const isCP = s.grade === 'CP' || s.grade === 'Completed'
       const isF  = s.grade === 'F'
+      const grade = (isCP ? 'CP' : (s.grade || null)) as Grade | null
+      const gp = isCP ? null : (isF ? 0 : (s.grade_points ?? (grade ? GRADE_POINTS[grade] : null)))
       return {
         id: `new_scan_${i}_${Date.now()}`,
         name: s.name,
         credits: (isCP || isF) ? 0 : (s.credits || 3),
-        grade: (isCP ? 'CP' : (s.grade || null)) as Grade | null,
-        grade_points: isCP ? null : (isF ? 0 : (s.grade_points ?? null)),
+        grade,
+        grade_points: gp,
       }
     })
     setModalSubjects(rows)

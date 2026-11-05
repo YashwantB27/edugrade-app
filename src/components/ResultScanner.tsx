@@ -4,6 +4,9 @@
  * Modal that lets a user upload a result document (Excel, Word,
  * PDF, Photo) OR paste result text directly, and auto-fills
  * the Add Semester subject rows with name, credits, and grades.
+ *
+ * Includes an interactive preview table where users can edit
+ * or adjust any detected grades/credits directly before applying!
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -11,9 +14,12 @@ import { useState, useRef, useCallback } from 'react'
 import {
   parseResultFile,
   parseRawText,
+  gradeToPoints,
   type ParseResult,
+  type ParsedSubject,
   type OcrProgressCallback,
 } from '../lib/resultParser'
+import type { Grade } from '../lib/grading'
 
 interface ResultScannerProps {
   onApply: (result: ParseResult) => void
@@ -67,7 +73,6 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
       const parsed = await parseResultFile(file, onProgress)
       setResult(parsed)
       setEditableRawText(parsed.rawText || '')
-      // If 0 subjects detected, automatically open raw editor for user to see
       if (parsed.subjects.length === 0) {
         setShowRawEditor(true)
       }
@@ -101,7 +106,7 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
     }, 150)
   }
 
-  // ── Re-parse edited text ───────────────────────────────────
+  // ── Re-parse edited raw text ───────────────────────────────
   const handleReparseRawText = () => {
     if (!editableRawText.trim()) return
     const parsed = parseRawText(editableRawText)
@@ -109,6 +114,49 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
     if (parsed.subjects.length > 0) {
       setShowRawEditor(false)
     }
+  }
+
+  // ── Direct Row Editing in Preview Table ────────────────────
+  const updateSubjectRow = (index: number, field: keyof ParsedSubject, value: any) => {
+    if (!result) return
+    const updated = [...result.subjects]
+    const current = { ...updated[index], [field]: value }
+
+    if (field === 'grade') {
+      const g = value as Grade | null
+      if (g === 'CP' || g === 'Completed') {
+        current.credits = 0
+        current.grade_points = null
+      } else if (g === 'F') {
+        current.credits = 0
+        current.grade_points = 0
+      } else if (g) {
+        if (current.credits === 0) current.credits = 3
+        current.grade_points = gradeToPoints(g)
+      } else {
+        current.grade_points = null
+      }
+    }
+
+    updated[index] = current
+    setResult({ ...result, subjects: updated })
+  }
+
+  const deleteSubjectRow = (index: number) => {
+    if (!result) return
+    const updated = result.subjects.filter((_, i) => i !== index)
+    setResult({ ...result, subjects: updated })
+  }
+
+  const addSubjectRow = () => {
+    if (!result) return
+    const newSub: ParsedSubject = {
+      name: '',
+      credits: 3,
+      grade: null,
+      grade_points: null,
+    }
+    setResult({ ...result, subjects: [...result.subjects, newSub] })
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,7 +199,7 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-[60]"
     >
-      <div className="bg-[rgb(var(--bg-secondary))] rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[92vh] border border-[rgb(var(--border))]">
+      <div className="bg-[rgb(var(--bg-secondary))] rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[92vh] border border-[rgb(var(--border))]">
 
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[rgb(var(--border))]">
@@ -261,9 +309,9 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 flex items-start gap-2.5">
                 <span className="text-blue-500 text-base shrink-0">💡</span>
                 <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                  <p className="font-semibold">Supports All Major Formats</p>
+                  <p className="font-semibold">Supports All University Results</p>
                   <p className="leading-relaxed opacity-90">
-                    Supports JNTUK, JNTUH, AU, Anna Univ, and Autonomous college marksheets. For best photo results, ensure good lighting and clear text.
+                    Works with JNTUK, JNTUH, AU, Anna Univ, and Autonomous colleges. Both letter grades (S, A, B, O, CP) and numerical marks (85, 74) are recognized!
                   </p>
                 </div>
               </div>
@@ -361,7 +409,7 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
             </div>
           )}
 
-          {/* ── Preview Table & Edit Mode ── */}
+          {/* ── Interactive Editable Preview Table ── */}
           {scanState === 'preview' && result && (
             <div className="space-y-3.5">
               {/* Status Header */}
@@ -438,51 +486,107 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
                 </div>
               )}
 
-              {/* Table of detected subjects */}
+              {/* Editable Table of detected subjects */}
               {result.subjects.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))] max-h-64 overflow-y-auto">
-                  <table className="w-full text-xs sm:text-sm">
-                    <thead className="bg-[rgb(var(--bg-tertiary))] sticky top-0 z-10">
-                      <tr className="text-left text-[11px] text-[rgb(var(--text-secondary))] uppercase tracking-wider">
-                        <th className="py-2 px-3">#</th>
-                        <th className="py-2 px-3">Subject Name</th>
-                        <th className="py-2 px-3 text-center">Credits</th>
-                        <th className="py-2 px-3 text-center">Grade</th>
-                        <th className="py-2 px-3 text-center">Points</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[rgb(var(--border))]">
-                      {result.subjects.map((sub, i) => (
-                        <tr key={i} className="hover:bg-[rgb(var(--bg-tertiary))]/60 transition-colors">
-                          <td className="py-2 px-3 text-[rgb(var(--text-secondary))] font-mono">{i + 1}</td>
-                          <td className="py-2 px-3 font-semibold text-[rgb(var(--text-primary))]">{sub.name}</td>
-                          <td className="py-2 px-3 text-center text-[rgb(var(--text-secondary))] font-medium">
-                            {sub.grade === 'CP' || sub.grade === 'Completed' ? '--' : sub.credits}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            {sub.grade ? (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                                sub.grade === 'S' || sub.grade === 'A'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                  : sub.grade === 'F'
-                                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
-                                  : sub.grade === 'CP' || sub.grade === 'Completed'
-                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                              }`}>
-                                {sub.grade === 'Completed' ? 'CP' : sub.grade}
-                              </span>
-                            ) : (
-                              <span className="text-[rgb(var(--text-secondary))]">—</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-center font-medium text-[rgb(var(--text-secondary))]">
-                            {sub.grade === 'CP' || sub.grade === 'Completed' ? '--' : (sub.grade_points ?? '—')}
-                          </td>
+                <div className="space-y-2">
+                  <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))] max-h-72 overflow-y-auto">
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead className="bg-[rgb(var(--bg-tertiary))] sticky top-0 z-10">
+                        <tr className="text-left text-[11px] text-[rgb(var(--text-secondary))] uppercase tracking-wider">
+                          <th className="py-2.5 px-2 text-center w-8">#</th>
+                          <th className="py-2.5 px-2">Subject Name</th>
+                          <th className="py-2.5 px-2 text-center w-20">Credits</th>
+                          <th className="py-2.5 px-2 text-center w-24">Grade</th>
+                          <th className="py-2.5 px-2 text-center w-16">Points</th>
+                          <th className="py-2.5 px-2 w-8"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-[rgb(var(--border))]">
+                        {result.subjects.map((sub, i) => (
+                          <tr key={i} className="hover:bg-[rgb(var(--bg-tertiary))]/40 transition-colors">
+                            <td className="py-1.5 px-2 text-center text-[rgb(var(--text-secondary))] font-mono text-xs">
+                              {i + 1}
+                            </td>
+                            <td className="py-1.5 px-2">
+                              <input
+                                type="text"
+                                value={sub.name}
+                                onChange={(e) => updateSubjectRow(i, 'name', e.target.value)}
+                                className="input-field text-xs sm:text-sm py-1 w-full font-medium"
+                                placeholder="Subject name"
+                              />
+                            </td>
+                            <td className="py-1.5 px-2 text-center">
+                              {sub.grade === 'CP' || sub.grade === 'Completed' ? (
+                                <span className="text-xs font-semibold text-[rgb(var(--text-secondary))]">--</span>
+                              ) : (
+                                <select
+                                  value={sub.credits}
+                                  onChange={(e) => updateSubjectRow(i, 'credits', parseFloat(e.target.value))}
+                                  className="input-field text-xs py-1 w-16 text-center"
+                                >
+                                  {[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4].map(cr => (
+                                    <option key={cr} value={cr}>{cr}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 text-center">
+                              <select
+                                value={sub.grade === 'Completed' ? 'CP' : (sub.grade || '')}
+                                onChange={(e) => updateSubjectRow(i, 'grade', e.target.value ? (e.target.value === 'CP' ? 'Completed' : e.target.value as Grade) : null)}
+                                className={`input-field text-xs py-1 font-bold text-center w-22 ${
+                                  sub.grade === 'S' || sub.grade === 'A'
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : sub.grade === 'F'
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : sub.grade === 'CP' || sub.grade === 'Completed'
+                                    ? 'text-purple-600 dark:text-purple-400'
+                                    : 'text-blue-600 dark:text-blue-400'
+                                }`}
+                              >
+                                <option value="">— Select —</option>
+                                <option value="S">S / O (10)</option>
+                                <option value="A">A / A+ (9)</option>
+                                <option value="B">B / B+ (8)</option>
+                                <option value="C">C (7)</option>
+                                <option value="D">D (6)</option>
+                                <option value="E">E / Pass (5)</option>
+                                <option value="F">F / Fail (0)</option>
+                                <option value="CP">CP (Audit)</option>
+                              </select>
+                            </td>
+                            <td className="py-1.5 px-2 text-center font-bold text-xs text-[rgb(var(--text-secondary))]">
+                              {sub.grade === 'CP' || sub.grade === 'Completed' ? '--' : (sub.grade_points ?? '—')}
+                            </td>
+                            <td className="py-1.5 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => deleteSubjectRow(i)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 p-1 rounded transition-colors"
+                                title="Remove this subject"
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={addSubjectRow}
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold flex items-center gap-1"
+                    >
+                      <span>➕</span> Add Another Subject
+                    </button>
+                    <p className="text-[11px] text-[rgb(var(--text-secondary))]">
+                      You can edit any subject, grade, or credit above before auto-filling.
+                    </p>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -492,9 +596,16 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
         {/* Footer */}
         {scanState === 'preview' && result && result.subjects.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-5 border-t border-[rgb(var(--border))] bg-[rgb(var(--bg-primary))]/50 gap-3">
-            <p className="text-xs text-[rgb(var(--text-secondary))] text-center sm:text-left">
-              These will auto-fill your semester form. You can still adjust any subject before saving.
-            </p>
+            <div className="text-xs text-[rgb(var(--text-secondary))] text-center sm:text-left">
+              <span className="font-semibold text-[rgb(var(--text-primary))]">
+                {result.subjects.filter(s => s.grade).length} of {result.subjects.length} grades assigned
+              </span>
+              {result.subjects.some(s => !s.grade) && (
+                <span className="text-amber-600 dark:text-amber-400 ml-1 font-medium">
+                  • Some grades are empty (you can select them above)
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
               <button onClick={onClose} className="btn-ghost text-xs sm:text-sm">
                 Cancel
