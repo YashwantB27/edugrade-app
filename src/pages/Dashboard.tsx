@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 // @ts-ignore
 import html2pdf from 'html2pdf.js'
@@ -12,6 +13,7 @@ import type { ParseResult } from '../lib/resultParser'
 
 export function Dashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -961,8 +963,8 @@ export function Dashboard() {
                 📊 {showAnalytics ? 'Hide Analytics' : 'Grade Analytics'}
               </button>
               <button
-                onClick={() => setShowPrintModal(true)}
-                className="btn-secondary text-xs sm:text-sm py-2 px-3"
+                onClick={() => navigate('/transcript', { state: { semesters } })}
+                className="btn-secondary text-xs sm:text-sm py-2 px-3 hover:border-teal-500 hover:text-teal-400"
                 title="Preview and print official grade report card"
               >
                 🖨️ Print Transcript
@@ -1751,8 +1753,8 @@ export function Dashboard() {
           className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
         >
           <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden my-8">
-            {/* Modal Control Bar (Hidden when printed) */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gray-50 dark:bg-slate-800/90 border-b border-gray-200 dark:border-slate-700 no-print">
+            {/* Modal Control Bar - Styled with Teal */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-[#042f2e] border-b border-teal-500/30 text-teal-100 no-print">
               {/* Back Arrow button at top corner */}
               <div className="flex items-center gap-3">
                 <button
@@ -1777,6 +1779,14 @@ export function Dashboard() {
 
               {/* Action Buttons: Download, Print, and Close */}
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowPrintModal(false); navigate('/transcript', { state: { semesters } }); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-teal-800/80 hover:bg-teal-700 text-teal-100 border border-teal-500/40 text-xs sm:text-sm font-semibold rounded-xl transition-all"
+                  title="Open as a dedicated full webpage"
+                >
+                  <span>↗️</span>
+                  <span>Full Page</span>
+                </button>
                 <button
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors"

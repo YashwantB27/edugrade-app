@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
+import { Transcript } from './pages/Transcript'
 
 export default function App() {
   return (
@@ -19,6 +20,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/transcript"
+              element={
+                <ProtectedRoute>
+                  <Transcript />
                 </ProtectedRoute>
               }
             />
