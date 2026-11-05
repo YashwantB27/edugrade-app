@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 // @ts-ignore
 import html2pdf from 'html2pdf.js'
 import { useAuth } from '../contexts/AuthContext'
@@ -108,7 +108,7 @@ export function Transcript() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[rgb(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 border-4 border-teal-500/30 border-t-teal-500 rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-600 rounded-full animate-spin" />
         <p className="text-sm font-semibold text-[rgb(var(--text-secondary))]">Generating Official Transcript…</p>
       </div>
     )
@@ -116,29 +116,32 @@ export function Transcript() {
 
   return (
     <div className="min-h-screen bg-[rgb(var(--bg-primary))] pb-16">
-      {/* Sticky Teal Control Bar (Hidden when printed) */}
-      <header className="sticky top-0 z-50 bg-[#042f2e]/95 dark:bg-[#042f2e]/95 backdrop-blur-md border-b border-teal-500/30 text-white shadow-xl no-print">
+      {/* Sticky Crimson Red Control Bar (Hidden when printed) */}
+      <header className="sticky top-0 z-50 bg-[#3f0814]/95 dark:bg-[#20040a]/95 backdrop-blur-md border-b border-primary-500/30 text-white shadow-xl shadow-rose-950/20 no-print">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Back button */}
-          <button
+          {/* Back to Dashboard Button using Link */}
+          <Link
+            to="/dashboard"
             onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-teal-950/60 hover:bg-teal-900 border border-teal-500/30 text-xs sm:text-sm font-semibold text-teal-200 hover:text-white transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary-950/70 hover:bg-primary-900 border border-primary-500/40 text-xs sm:text-sm font-semibold text-rose-200 hover:text-white transition-all cursor-pointer shadow-sm group"
+            title="Return to EduGrade Dashboard"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             <span>Back to Dashboard</span>
-          </button>
+          </Link>
 
-          <div className="hidden sm:flex items-center gap-2 text-teal-100 font-display font-bold text-sm">
+          <div className="hidden sm:flex items-center gap-2 text-rose-100 font-display font-bold text-sm">
             <span className="text-lg">🎓</span> Official Academic Transcript
           </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-bold text-xs sm:text-sm shadow-lg shadow-teal-950/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-950/40 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
               title="Print all pages or save as PDF via browser"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -148,9 +151,10 @@ export function Transcript() {
             </button>
 
             <button
+              type="button"
               onClick={downloadPDF}
               disabled={isGeneratingPDF}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-900/80 hover:bg-teal-800 border border-teal-500/40 text-teal-100 font-semibold text-xs sm:text-sm transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-950/80 hover:bg-primary-900 border border-primary-500/40 text-rose-100 font-semibold text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer"
             >
               {isGeneratingPDF ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -169,10 +173,10 @@ export function Transcript() {
       <main className="max-w-4xl mx-auto px-3 sm:px-6 mt-6 sm:mt-8">
         <div
           id="full-transcript-document"
-          className="bg-white text-gray-900 rounded-2xl shadow-2xl p-6 sm:p-12 border border-gray-200"
+          className="bg-white text-gray-900 rounded-2xl shadow-2xl p-6 sm:p-12 border border-rose-200/80"
         >
           {/* Institution & Student Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b-2 border-teal-800 gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b-2 border-primary-800 gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-3xl">🎓</span>
@@ -180,7 +184,7 @@ export function Transcript() {
                   EduGrade Academic Transcript
                 </h1>
               </div>
-              <p className="text-xs text-teal-800 uppercase tracking-widest font-bold">
+              <p className="text-xs text-primary-800 uppercase tracking-widest font-bold">
                 Comprehensive Multi-Semester Grade & Credit Performance Record
               </p>
             </div>
@@ -191,31 +195,31 @@ export function Transcript() {
             </div>
           </div>
 
-          {/* Cumulative Performance Snapshot with Teal Accents */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-teal-50/60 border border-teal-200 mb-8">
+          {/* Cumulative Performance Snapshot with Crimson Red Accents */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-br from-rose-50/80 via-rose-50/50 to-primary-50/30 border border-rose-200 mb-8">
             <div>
-              <div className="text-[10px] uppercase font-bold text-teal-800">Cumulative GPA (CGPA)</div>
+              <div className="text-[10px] uppercase font-bold text-primary-900 tracking-wider">Cumulative GPA (CGPA)</div>
               <div className="text-2xl font-black text-gray-900 font-display mt-0.5">
                 {cgpa > 0 ? cgpa.toFixed(2) : '—'} <span className="text-xs font-normal text-gray-500">/ 10.0</span>
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold text-teal-800">Equivalent Percentage</div>
-              <div className="text-2xl font-black text-teal-700 font-display mt-0.5">
+              <div className="text-[10px] uppercase font-bold text-primary-900 tracking-wider">Equivalent Percentage</div>
+              <div className="text-2xl font-black text-primary-700 font-display mt-0.5">
                 {cgpa > 0 ? `${Math.max(0, (cgpa - 0.75) * 10).toFixed(1)}%` : '—'}
               </div>
-              <span className="text-[9px] text-gray-500">(CGPA - 0.75) × 10</span>
+              <span className="text-[9px] text-gray-500 font-medium">(CGPA - 0.75) × 10</span>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold text-teal-800">Total Credits Earned</div>
+              <div className="text-[10px] uppercase font-bold text-primary-900 tracking-wider">Total Credits Earned</div>
               <div className="text-2xl font-bold text-gray-900 mt-0.5">{totalCredits}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold text-teal-800">Standing & Backlogs</div>
-              <div className="text-sm font-bold text-teal-900 mt-1">
+              <div className="text-[10px] uppercase font-bold text-primary-900 tracking-wider">Standing & Backlogs</div>
+              <div className="text-sm font-bold text-primary-800 mt-1">
                 {badge.label}
               </div>
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-gray-600">
                 {totalSubjects} courses {totalBacklogs > 0 ? `(${totalBacklogs} Active Backlogs)` : '(0 Backlogs)'}
               </span>
             </div>
@@ -230,22 +234,22 @@ export function Transcript() {
               )
 
               return (
-                <div key={semester.id} className="border border-gray-300 rounded-xl overflow-hidden print-card">
-                  {/* Semester Bar */}
-                  <div className="bg-teal-50 px-4 py-2.5 flex items-center justify-between border-b border-teal-200">
-                    <span className="font-bold text-sm text-teal-950 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                <div key={semester.id} className="border border-rose-200/80 rounded-xl overflow-hidden print-card shadow-xs">
+                  {/* Semester Bar in Crimson Red */}
+                  <div className="bg-rose-50/90 px-4 py-2.5 flex items-center justify-between border-b border-rose-200">
+                    <span className="font-bold text-sm text-primary-950 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary-600"></span>
                       Semester {semester.label}
                     </span>
                     <div className="text-xs space-x-4 text-gray-700 font-medium">
                       <span>Credits: <strong className="text-gray-900">{semCreds}</strong></span>
-                      <span>SGPA: <strong className="text-teal-800 font-bold text-sm">{semSgpa > 0 ? semSgpa.toFixed(2) : '—'}</strong></span>
+                      <span>SGPA: <strong className="text-primary-800 font-bold text-sm">{semSgpa > 0 ? semSgpa.toFixed(2) : '—'}</strong></span>
                     </div>
                   </div>
 
                   {/* Course Table */}
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 text-left">
+                    <thead className="bg-gray-50/90 border-b border-gray-200 text-gray-600 text-left">
                       <tr>
                         <th className="py-2.5 px-3 w-10 text-center">#</th>
                         <th className="py-2.5 px-3">Subject / Course Name</th>
@@ -256,7 +260,7 @@ export function Transcript() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {semester.subjects.map((sub, i) => (
-                        <tr key={sub.id} className="hover:bg-gray-50/50">
+                        <tr key={sub.id} className="hover:bg-rose-50/30 transition-colors">
                           <td className="py-2 px-3 text-gray-400 text-center font-mono">{i + 1}</td>
                           <td className="py-2 px-3 font-semibold text-gray-900">{sub.name}</td>
                           <td className="py-2 px-3 text-center text-gray-700 font-medium">
@@ -267,10 +271,10 @@ export function Transcript() {
                               sub.grade === 'S' || sub.grade === 'A'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : sub.grade === 'F'
-                                ? 'bg-rose-100 text-rose-800'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                 : sub.grade === 'CP' || sub.grade === 'Completed'
                                 ? 'bg-purple-100 text-purple-800'
-                                : 'bg-blue-100 text-blue-800'
+                                : 'bg-rose-50 text-rose-900 border border-rose-200/60'
                             }`}>
                               {sub.grade === 'Completed' ? 'CP' : (sub.grade || '—')}
                             </span>
@@ -288,7 +292,7 @@ export function Transcript() {
           </div>
 
           {/* Grading Legend & Seal Footer */}
-          <div className="mt-10 pt-6 border-t-2 border-gray-300 text-[11px] text-gray-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="mt-10 pt-6 border-t-2 border-rose-200 text-[11px] text-gray-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <strong>Grading Scheme:</strong> S / O: 10 | A: 9 | B: 8 | C: 7 | D: 6 | E: 5 | F: 0 | CP: Completed
               <p className="mt-0.5">Official authenticated electronic transcript generated via EduGrade Academic Portal.</p>

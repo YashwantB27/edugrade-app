@@ -964,7 +964,7 @@ export function Dashboard() {
               </button>
               <button
                 onClick={() => navigate('/transcript', { state: { semesters } })}
-                className="btn-secondary text-xs sm:text-sm py-2 px-3 hover:border-teal-500 hover:text-teal-400"
+                className="btn-secondary text-xs sm:text-sm py-2 px-3 hover:border-primary-500 hover:text-primary-400"
                 title="Preview and print official grade report card"
               >
                 🖨️ Print Transcript
@@ -1753,8 +1753,8 @@ export function Dashboard() {
           className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
         >
           <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden my-8">
-            {/* Modal Control Bar - Styled with Teal */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-[#042f2e] border-b border-teal-500/30 text-teal-100 no-print">
+            {/* Modal Control Bar - Crimson Red */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-[#4c0519] border-b border-rose-500/30 text-rose-100 no-print">
               {/* Back Arrow button at top corner */}
               <div className="flex items-center gap-3">
                 <button
@@ -1781,7 +1781,7 @@ export function Dashboard() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setShowPrintModal(false); navigate('/transcript', { state: { semesters } }); }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-teal-800/80 hover:bg-teal-700 text-teal-100 border border-teal-500/40 text-xs sm:text-sm font-semibold rounded-xl transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-rose-950/80 hover:bg-rose-900 text-rose-100 border border-rose-500/40 text-xs sm:text-sm font-semibold rounded-xl transition-all"
                   title="Open as a dedicated full webpage"
                 >
                   <span>↗️</span>
