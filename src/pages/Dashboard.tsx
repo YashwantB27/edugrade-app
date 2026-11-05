@@ -294,17 +294,23 @@ export function Dashboard() {
     try {
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
-        filename: `EduGrade_Transcript_${new Date().toISOString().slice(0, 10)}.pdf`,
+        filename: `EduGrade_Transcript_${user?.email ? user.email.split('@')[0] : 'Student'}_${new Date().toISOString().slice(0, 10)}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          scrollY: 0,
+          windowWidth: 1024,
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        pagebreak: { mode: ['css', 'legacy'] },
       }
       await html2pdf().set(opt).from(transcriptEl).save()
       showToast('📥 PDF downloaded successfully!')
       setShowPrintModal(false)
     } catch (err) {
-      showToast('Error generating PDF. Please try again.')
+      showToast('PDF error. Please click "Print / Save PDF" to save directly.')
     } finally {
       setIsGeneratingPDF(false)
     }
@@ -790,9 +796,14 @@ export function Dashboard() {
                 </div>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
                   {cgpa > 0 && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-xs">
-                      ✨ {badge.label}
-                    </span>
+                    <>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-xs">
+                        ✨ {badge.label}
+                      </span>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-xs" title="Conversion: (CGPA - 0.75) × 10">
+                        📊 ~{Math.max(0, (cgpa - 0.75) * 10).toFixed(1)}% Marks
+                      </span>
+                    </>
                   )}
                   <span className="text-xs text-primary-200/90 font-medium">
                     Scale: 10.0
@@ -1767,10 +1778,20 @@ export function Dashboard() {
               {/* Action Buttons: Download, Print, and Close */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors"
+                  title="Print all pages or save as PDF via browser"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print / Save PDF</span>
+                </button>
+                <button
                   onClick={downloadTranscriptPDF}
                   disabled={isGeneratingPDF}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors"
-                  title="Download transcript as PDF"
+                  title="Download transcript as PDF file"
                 >
                   {isGeneratingPDF ? (
                     <>

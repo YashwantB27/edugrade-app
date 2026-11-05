@@ -62,22 +62,52 @@
   }
 }
 
+/* Multi-page Print Styling for Transcripts */
 @media print {
-  body {
+  html, body {
     background: #ffffff !important;
     color: #111827 !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .no-print {
-    display: none !important;
+
+  body * {
+    visibility: hidden;
   }
-  .print-only {
+
+  #printable-transcript-document,
+  #printable-transcript-document * {
+    visibility: visible;
+  }
+
+  #printable-transcript-document {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    background: #ffffff !important;
+    color: #111827 !important;
     display: block !important;
+    overflow: visible !important;
+    height: auto !important;
   }
+
   .print-card {
-    border: 1px solid #e5e7eb !important;
-    break-inside: avoid;
+    border: 1px solid #d1d5db !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     box-shadow: none !important;
     background: #ffffff !important;
+    margin-bottom: 20px !important;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }
 

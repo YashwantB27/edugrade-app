@@ -4,4 +4,14 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          scanner: ['tesseract.js', 'xlsx', 'mammoth', 'pdfjs-dist'],
+          pdf: ['html2pdf.js', 'canvas-confetti'],
+        },
+      },
+    },
+  },
 })
