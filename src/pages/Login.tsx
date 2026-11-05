@@ -54,9 +54,11 @@ export function Login() {
         <div className="card shadow-2xl border border-[rgb(var(--border))]">
           {/* Logo */}
           <Link to="/" className="flex items-center justify-center gap-3 mb-6 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-500 via-primary-600 to-primary-800 rounded-xl flex items-center justify-center shadow-lg shadow-rose-950/40 border border-rose-400/20 group-hover:scale-105 transition-transform">
-              <span className="text-white font-display font-extrabold text-xl">E</span>
-            </div>
+            <img
+              src="/logo-symbol-transparent.png"
+              alt="EduGrade"
+              className="w-12 h-12 object-contain drop-shadow-[0_2px_12px_rgba(225,29,72,0.5)] group-hover:scale-105 transition-transform"
+            />
             <span className="font-display font-bold text-2xl text-[rgb(var(--text-primary))]">
               Edu<span className="text-primary-500">Grade</span>
             </span>

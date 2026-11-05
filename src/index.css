@@ -120,3 +120,44 @@
     display: none !important;
   }
 }
+
+
+/* ── 5-Second Intro Splash Animations ────────────────────────── */
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes progress5s {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-float-gentle {
+  animation: floatGentle 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmerSweep 2.2s ease-in-out infinite;
+}
+
+.animate-progress-5s {
+  animation: progress5s 5s linear forwards;
+}

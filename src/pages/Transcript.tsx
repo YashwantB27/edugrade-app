@@ -133,7 +133,7 @@ export function Transcript() {
           </Link>
 
           <div className="hidden sm:flex items-center gap-2 text-rose-100 font-display font-bold text-sm">
-            <span className="text-lg">🎓</span> Official Academic Transcript
+            <img src="/logo-symbol-transparent.png" alt="EduGrade" className="w-5 h-5 object-contain" /> Official Academic Transcript
           </div>
 
           {/* Action buttons */}
@@ -178,8 +178,8 @@ export function Transcript() {
           {/* Institution & Student Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b-2 border-primary-800 gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-3xl">🎓</span>
+              <div className="flex items-center gap-3 mb-1">
+                <img src="/logo-symbol-transparent.png" alt="EduGrade" className="w-10 h-10 object-contain drop-shadow-sm" />
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 font-display">
                   EduGrade Academic Transcript
                 </h1>

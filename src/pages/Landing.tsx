@@ -16,9 +16,11 @@ export function Landing() {
       <header className="border-b border-[rgb(var(--border))] bg-[rgb(var(--bg-primary))]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-500 via-primary-600 to-primary-800 rounded-xl flex items-center justify-center shadow-lg shadow-rose-950/40 border border-rose-400/20">
-              <span className="text-white font-display font-extrabold text-xl tracking-tight">E</span>
-            </div>
+            <img
+              src="/logo-symbol-transparent.png"
+              alt="EduGrade"
+              className="w-10 h-10 object-contain drop-shadow-[0_2px_10px_rgba(225,29,72,0.45)]"
+            />
             <span className="font-display font-bold text-2xl text-[rgb(var(--text-primary))]">
               Edu<span className="text-primary-500">Grade</span>
             </span>

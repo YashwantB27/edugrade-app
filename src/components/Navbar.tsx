@@ -14,9 +14,11 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-500 via-primary-600 to-primary-800 rounded-xl flex items-center justify-center shadow-lg shadow-rose-950/30 border border-rose-400/20">
-              <span className="text-white font-display font-extrabold text-xl tracking-tight">E</span>
-            </div>
+            <img
+              src="/logo-symbol-transparent.png"
+              alt="EduGrade"
+              className="w-10 h-10 object-contain drop-shadow-[0_2px_10px_rgba(225,29,72,0.4)]"
+            />
             <div className="flex flex-col">
               <span className="font-display font-bold text-xl text-[rgb(var(--text-primary))] tracking-tight">
                 Edu<span className="text-primary-500">Grade</span>
