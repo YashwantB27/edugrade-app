@@ -3,10 +3,12 @@ import confetti from 'canvas-confetti'
 // @ts-ignore
 import html2pdf from 'html2pdf.js'
 import { Navbar } from '../components/Navbar'
+import { ResultScanner } from '../components/ResultScanner'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { calculateCGPA, calculateSGPA, getCGPABadge, calculateRequiredGrade, GRADE_POINTS } from '../lib/grading'
-import type { Semester, Subject } from '../lib/grading'
+import type { Semester, Subject, Grade } from '../lib/grading'
+import type { ParseResult } from '../lib/resultParser'
 
 export function Dashboard() {
   const { user } = useAuth()
@@ -30,6 +32,27 @@ export function Dashboard() {
   const [isLateralEntry, setIsLateralEntry] = useState<boolean>(() => {
     try { return localStorage.getItem('edugrade_lateral_entry') === 'true' } catch { return false }
   })
+
+  const [showScanner, setShowScanner] = useState(false)
+
+  const applyScannedResult = (parsed: ParseResult) => {
+    const rows = parsed.subjects.map((s, i) => {
+      const isCP = s.grade === 'CP'
+      const isF  = s.grade === 'F'
+      return {
+        id: `new_scan_${i}_${Date.now()}`,
+        name: s.name,
+        credits: (isCP || isF) ? 0 : (s.credits || 3),
+        grade: (isCP ? 'CP' : (s.grade || null)) as Grade | null,
+        grade_points: isCP ? null : (isF ? 0 : (s.grade_points ?? null)),
+      }
+    })
+    setModalSubjects(rows)
+    if (parsed.detectedSemester && !selectedSemester) {
+      handleSemesterSelectChange(parsed.detectedSemester)
+    }
+    showToast('✅ ' + parsed.subjects.length + ' subjects auto-filled from your result!')
+  }
 
   const toggleLateralEntry = () => {
     setIsLateralEntry(prev => {
@@ -307,7 +330,7 @@ export function Dashboard() {
       if (value !== null) {
         const matchedGrade = Object.entries(GRADE_POINTS).find(([_, pts]) => pts === value)?.[0]
         if (matchedGrade && !updated[index].grade) {
-          updated[index].grade = matchedGrade
+          updated[index].grade = matchedGrade as Grade
         }
       }
     }
@@ -1486,9 +1509,18 @@ export function Dashboard() {
               <h3 className="text-xl font-semibold">
                 {editingSemesterId ? `Edit Semester (${selectedSemester || 'Details'})` : 'Add Semester'}
               </h3>
-              <button onClick={closeModal} className="text-2xl hover:bg-[rgb(var(--bg-tertiary))] w-8 h-8 rounded-lg">
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowScanner(true)}
+                  className="flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 text-white font-semibold shadow-sm hover:from-violet-600 hover:to-indigo-700 transition-all"
+                  title="Upload a result document and auto-fill grades"
+                >
+                  <span>📷</span> Scan Result
+                </button>
+                <button onClick={closeModal} className="text-2xl hover:bg-[rgb(var(--bg-tertiary))] w-8 h-8 rounded-lg flex items-center justify-center">
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto flex-1">
@@ -1881,6 +1913,14 @@ export function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Result Scanner Modal */}
+      {showScanner && (
+        <ResultScanner
+          onApply={applyScannedResult}
+          onClose={() => setShowScanner(false)}
+        />
       )}
 
       {/* Toast */}

@@ -1,4 +1,6 @@
 // 10-point grading scale for Indian engineering programs
+export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'CP' | 'Completed';
+
 export const GRADE_POINTS: Record<string, number> = {
   'S': 10,
   'A': 9,
@@ -9,13 +11,13 @@ export const GRADE_POINTS: Record<string, number> = {
   'F': 0,
 }
 
-export const GRADE_OPTIONS = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'CP', 'Completed']
+export const GRADE_OPTIONS: Grade[] = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'CP', 'Completed']
 
 export interface Subject {
   id: string
   name: string
   credits: number
-  grade: string | null
+  grade: Grade | null
   grade_points: number | null
 }
 
@@ -38,7 +40,7 @@ export function calculateSGPA(subjects: Subject[]): number {
     s.grade !== 'Completed' &&
     s.grade !== 'CP' &&
     s.grade !== 'F' &&
-    s.grade_points !== null
+    (s.grade_points !== null && GRADE_POINTS[s.grade] === s.grade_points)
   )
 
   if (graded.length === 0) return 0
@@ -80,9 +82,11 @@ export function calculateRequiredGrade(
   targetCGPA: number,
   newCredits: number
 ): number {
+  if (newCredits <= 0) return 0;
+
   const currentPoints = currentCGPA * currentCredits
   const requiredPoints = targetCGPA * (currentCredits + newCredits)
   const neededPoints = requiredPoints - currentPoints
 
-  return newCredits > 0 ? neededPoints / newCredits : 0
+  return neededPoints / newCredits
 }
