@@ -6,7 +6,7 @@
  *   • Word  (.docx)        -> mammoth.js HTML text -> smart parse
  *   • PDF   (.pdf)         -> pdfjs-dist digital text extraction
  *                             (with canvas OCR fallback if scanned)
- *   • Image (JPG/PNG/etc)  -> Canvas contrast boost -> Tesseract OCR
+ *   • Image (JPG/PNG/etc)  -> Auto-crop dark borders -> Canvas contrast boost -> Tesseract OCR
  *   • Direct pasted text   -> Instant smart regex parsing
  *
  * Runs 100% in browser. Zero API keys. Private & offline-friendly.
@@ -45,10 +45,11 @@ const GRADE_ALIASES: Record<string, Grade> = {
   'EXCELLENT': 'S',
   'S+': 'S',
   'S': 'S',
+  'SS': 'S',
   '10': 'S',
   '10.0': 'S',
 
-  // A grade / 9 points (or 8 in R20, mapped to standard 10-pt)
+  // A grade / 9 points
   'A+': 'A',
   'A': 'A',
   'A1': 'A',
@@ -64,12 +65,15 @@ const GRADE_ALIASES: Record<string, Grade> = {
   '8': 'B',
   '8.0': 'B',
 
-  // C grade / 7 points
+  // C grade / 7 points (OCR often misreads 'C' as '©')
   'C+': 'C',
   'C': 'C',
   'C1': 'C',
   'FAIR': 'C',
   'ABOVE AVERAGE': 'C',
+  '©': 'C',
+  '(C)': 'C',
+  'C)': 'C',
   '7': 'C',
   '7.0': 'C',
 
@@ -98,8 +102,6 @@ const GRADE_ALIASES: Record<string, Grade> = {
   'AB': 'F',
   'ABSENT': 'F',
   'NA': 'F',
-  '0': 'F',
-  '0.0': 'F',
 
   // Audit / CP courses
   'CP': 'CP',
@@ -115,7 +117,7 @@ export function normaliseGrade(raw: string): Grade | null {
     return GRADE_ALIASES[clean]
   }
 
-  // Marks to grade conversion (if a percentage / marks number is passed)
+  // Marks to grade conversion (if a percentage / marks number is passed: e.g. 85, 92)
   const num = parseFloat(clean)
   if (!isNaN(num) && /^\d{2,3}(\.\d+)?$/.test(clean)) {
     if (num >= 90) return 'S'
@@ -184,58 +186,46 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
   const tokens = line.split(' ')
   if (tokens.length < 2) return null
 
-  // 1. Identify Grade token (searching backwards)
-  let gradeIndex = -1
-  let gradeValue: Grade | null = null
+  // 1. Strip Roll Number / Hall Ticket Number AND Subject Code
+  let startIndex = 0
+  // Check if first token is a Hall Ticket Number (e.g. 24HP5A0221, PAHPSA022], 19A91A0501, etc.)
+  if (/^[A-Za-z0-9\]]{9,12}$/.test(tokens[0])) {
+    startIndex = 1
+  }
+  // Check if next token is a Subject Code (e.g. R233101F, R2331021, CS301, 19CS301, etc.)
+  if (startIndex < tokens.length && /^[A-Za-z0-9]{5,10}$/.test(tokens[startIndex])) {
+    startIndex++
+  }
 
-  // First pass: look for explicit letter grades or CP
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const t = tokens[i].toUpperCase().replace(/[.,;:()]/g, '')
-    // Skip if it's just 'P' or 'PASS' if there might be another letter grade earlier
-    if (['PASS', 'PASSED', 'P'].includes(t)) continue
-    const matched = normaliseGrade(t)
-    if (matched) {
-      gradeIndex = i
-      gradeValue = matched
+  // 2. Identify Credits token (searching backwards)
+  let creditsIndex = -1
+  let creditsValue: number | null = null
+
+  // Check last 3 tokens for credits (handles standard 0-6 or OCR misread 15 -> 1.5)
+  for (let i = tokens.length - 1; i >= Math.max(startIndex, tokens.length - 3); i--) {
+    const t = tokens[i].replace(/[.,;:()]/g, '')
+    let num = parseFloat(t)
+    // Common OCR typo: '15' instead of '1.5' for lab credits
+    if (num === 15) num = 1.5
+
+    if (!isNaN(num) && num >= 0 && num <= 6 && /^\d(\.(0|5))?$/.test(String(num))) {
+      creditsIndex = i
+      creditsValue = num
       break
     }
   }
 
-  // Second pass: if no grade found, check if last tokens have 'PASS', 'FAIL', or marks (40-100)
-  if (!gradeValue) {
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      const t = tokens[i].toUpperCase().replace(/[.,;:()]/g, '')
-      const matched = normaliseGrade(t)
-      if (matched) {
-        gradeIndex = i
-        gradeValue = matched
-        break
-      }
-    }
-  }
+  // 3. Identify Grade token (searching backwards, excluding credits token)
+  let gradeIndex = -1
+  let gradeValue: Grade | null = null
 
-  // OCR typo fix: If token is '0' (digit zero) and next token is credits (e.g. '3'), '0' is letter 'O' (Outstanding)
-  if (!gradeValue) {
-    for (let i = 0; i < tokens.length - 1; i++) {
-      if (tokens[i] === '0' && /^\d(\.(0|5))?$/.test(tokens[i + 1])) {
-        gradeIndex = i
-        gradeValue = 'S' // O grade -> S
-        break
-      }
-    }
-  }
-
-  // 2. Identify Credits token (searching backwards, excluding grade token)
-  let creditsIndex = -1
-  let creditsValue: number | null = null
-
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    if (i === gradeIndex) continue
-    const t = tokens[i].replace(/[.,;:()]/g, '')
-    const num = parseFloat(t)
-    if (!isNaN(num) && num >= 0 && num <= 6 && /^\d(\.(0|5))?$/.test(t)) {
-      creditsIndex = i
-      creditsValue = num
+  for (let i = tokens.length - 1; i >= startIndex; i--) {
+    if (i === creditsIndex) continue
+    const t = tokens[i].toUpperCase().replace(/[.,;:()]/g, '')
+    const matched = normaliseGrade(t)
+    if (matched) {
+      gradeIndex = i
+      gradeValue = matched
       break
     }
   }
@@ -245,27 +235,14 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
     return null
   }
 
-  // 3. Strip Subject Code if first token looks like one (e.g. R201101, 19CS301, CS8391, MA101, etc.)
-  let startIndex = 0
-  if (tokens.length > 2) {
-    const firstToken = tokens[0].replace(/[.:,-]$/, '')
-    if (
-      /^[A-Za-z0-9]{5,10}$/.test(firstToken) ||
-      /^[A-Za-z]{2,5}\d{3,5}[A-Za-z]?$/.test(firstToken) ||
-      /^\d{2}[A-Za-z]\d{2,5}$/.test(firstToken)
-    ) {
-      startIndex = 1
-    }
-  }
-
   // 4. Extract Subject Name
   const nameTokens: string[] = []
   for (let i = startIndex; i < tokens.length; i++) {
     if (i === gradeIndex || i === creditsIndex) continue
     const t = tokens[i]
     const upper = t.toUpperCase()
-    // Skip if it looks like marks (e.g. 25, 75, 100, 40) or grade points
-    if (/^\d{1,3}(\.\d+)?$/.test(t) && parseFloat(t) >= 7) continue
+    // Skip if it looks like marks (e.g. 26, 22, 24, 30, 28, 20, 0) near the grade/credit
+    if (/^\d{1,3}(\.\d+)?$/.test(t) && i >= tokens.length - 4) continue
     // Skip status words
     if (['PASS', 'FAIL', 'PASSED', 'FAILED', 'REGULAR', 'SUPPLEMENTARY', 'P', 'REM', 'COMP'].includes(upper)) continue
     nameTokens.push(t)
@@ -304,8 +281,8 @@ export function parseRawText(text: string): ParseResult {
     if (!cur) continue
     const next = (rawLines[i + 1] || '').trim()
 
-    // If next line is short (e.g. "A 3.0" or "S 3" or "COMPLETED 0")
-    if (next && /^[A-Za-z0-9+]{1,10}\s+(\d(?:\.\d)?)$/.test(next)) {
+    // If next line is short (e.g. "A 3.0" or "S 15" or "COMPLETED 0")
+    if (next && /^[A-Za-z0-9+©]{1,10}\s+(\d(?:\.\d)?|15)$/.test(next)) {
       mergedLines.push(cur + ' ' + next)
       i++ // skip next
     } else {
@@ -470,7 +447,7 @@ async function parsePDF(file: File, onProgress?: OcrProgressCallback): Promise<P
   }
 }
 
-// ── Image Preprocessing (Canvas Grayscale + Contrast Boost) ──
+// ── Image Preprocessing (Auto-crop dark borders + Grayscale + Contrast) ──
 async function preprocessImage(file: File): Promise<Blob | File> {
   return new Promise((resolve) => {
     const img = new Image()
@@ -490,20 +467,65 @@ async function preprocessImage(file: File): Promise<Blob | File> {
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const d = imgData.data
 
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+      // Check if image is a screenshot of an image viewer with dark letterboxing borders
+      let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0
+      let hasDarkBorders = false
+
+      // Quick bounding box scan of light pixels (> 120 brightness)
+      for (let y = 0; y < canvas.height; y += 4) {
+        for (let x = 0; x < canvas.width; x += 4) {
+          const idx = (y * canvas.width + x) * 4
+          const brightness = 0.299 * d[idx] + 0.587 * d[idx + 1] + 0.114 * d[idx + 2]
+          if (brightness > 120) {
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+          }
+        }
+      }
+
+      // If a bright table exists within dark letterboxing (saving at least 15% wasted borders)
+      const tableW = maxX - minX
+      const tableH = maxY - minY
+      if (tableW > 100 && tableH > 50 && (tableW < canvas.width * 0.85 || tableH < canvas.height * 0.85)) {
+        hasDarkBorders = true
+      }
+
+      // Create cropped or original canvas
+      const targetCanvas = document.createElement('canvas')
+      const cropX = hasDarkBorders ? Math.max(0, minX - 10) : 0
+      const cropY = hasDarkBorders ? Math.max(0, minY - 10) : 0
+      const cropW = hasDarkBorders ? Math.min(canvas.width - cropX, tableW + 20) : canvas.width
+      const cropH = hasDarkBorders ? Math.min(canvas.height - cropY, tableH + 20) : canvas.height
+
+      targetCanvas.width = cropW
+      targetCanvas.height = cropH
+      const targetCtx = targetCanvas.getContext('2d')
+      if (!targetCtx) {
+        resolve(file)
+        return
+      }
+
+      targetCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+      const targetImgData = targetCtx.getImageData(0, 0, cropW, cropH)
+      const td = targetImgData.data
+
+      // Grayscale & contrast enhancement
+      for (let i = 0; i < td.length; i += 4) {
+        const gray = 0.299 * td[i] + 0.587 * td[i + 1] + 0.114 * td[i + 2]
         const contrast = 1.35
         const factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
         const enhanced = factor * (gray - 128) + 128
         const finalVal = Math.min(255, Math.max(0, enhanced))
 
-        d[i] = finalVal
-        d[i + 1] = finalVal
-        d[i + 2] = finalVal
+        td[i] = finalVal
+        td[i + 1] = finalVal
+        td[i + 2] = finalVal
       }
 
-      ctx.putImageData(imgData, 0, 0)
-      canvas.toBlob((blob) => {
+      targetCtx.putImageData(targetImgData, 0, 0)
+      targetCanvas.toBlob((blob) => {
         resolve(blob ? new File([blob], 'enhanced.png', { type: 'image/png' }) : file)
       }, 'image/png')
     }
@@ -514,7 +536,7 @@ async function preprocessImage(file: File): Promise<Blob | File> {
 
 // ── Image OCR Parser (Tesseract.js) ───────────────────────────
 async function parseImageOCR(file: File, onProgress?: OcrProgressCallback): Promise<ParseResult> {
-  onProgress?.(10, 'Enhancing image clarity…')
+  onProgress?.(10, 'Enhancing image clarity & detecting table…')
   const processedFile = await preprocessImage(file)
 
   const worker = await createWorker('eng', 1, {
@@ -534,7 +556,7 @@ async function parseImageOCR(file: File, onProgress?: OcrProgressCallback): Prom
     const result = parseRawText(text)
     if (result.subjects.length === 0) {
       result.warnings.push(
-        'OCR completed. If the image was blurry or formatted uniquely, try pasting your result text directly.'
+        'OCR completed. If the image was blurry or formatted uniquely, you can edit or paste the text directly.'
       )
     }
     return result
