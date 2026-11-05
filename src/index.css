@@ -35,8 +35,12 @@
     --border: 39 39 42;
   }
 
+  html, body {
+    @apply overflow-x-hidden;
+  }
+
   body {
-    @apply bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))] font-sans antialiased;
+    @apply bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))] font-sans antialiased overflow-x-hidden min-w-0;
   }
 }
 

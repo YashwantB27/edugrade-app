@@ -1290,10 +1290,11 @@ export function Dashboard() {
         </div>
 
         {/* Academic Tools: Target CGPA Simulator, Analytics, Transcript & Export */}
-        <div className="card mb-8 border border-primary-500/20 bg-gradient-to-r from-primary-500/5 via-[rgb(var(--bg-secondary))] to-rose-500/5 no-print">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="card mb-8 border border-primary-500/20 bg-gradient-to-r from-primary-500/5 via-[rgb(var(--bg-secondary))] to-rose-500/5 no-print overflow-hidden">
+          {/* Header Row: Title & Active Count Pill */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[rgb(var(--border))]/70">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xl shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xl shrink-0 shadow-sm">
                 🎯
               </div>
               <div>
@@ -1301,12 +1302,71 @@ export function Dashboard() {
                   Academic Tools & Performance Suite
                 </h3>
                 <p className="text-xs text-[rgb(var(--text-secondary))]">
-                  Simulate future targets, analyze grade distribution, and print transcripts
+                  Interactive simulation, grade analysis, placement audit, and data management
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-primary-500/10 text-primary-500 dark:text-primary-400 font-semibold border border-primary-500/20">
+                8 Integrated Academic Utilities
+              </span>
+            </div>
+          </div>
+
+          {/* Action Tools: Two responsive rows with flex-wrap and zero horizontal overflow */}
+          <div className="pt-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            {/* Interactive Intelligence & Simulators */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[rgb(var(--text-secondary))] mr-1 hidden sm:inline">
+                Simulate:
+              </span>
+              <button
+                onClick={() => {
+                  setShowSimulator(prev => !prev)
+                  if (!showSimulator) {
+                    setShowPlacementHub(false)
+                    setShowAnalytics(false)
+                    setShowBacklogSimulator(false)
+                  }
+                }}
+                className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  showSimulator
+                    ? 'bg-primary-700 text-white shadow-xs'
+                    : 'btn-primary'
+                }`}
+              >
+                <span>🎯</span>
+                <span>{showSimulator ? 'Close Simulator' : 'Target Simulator'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowBacklogSimulator(prev => !prev)
+                  if (!showBacklogSimulator) {
+                    setShowSimulator(false)
+                    setShowAnalytics(false)
+                    setShowPlacementHub(false)
+                  }
+                }}
+                className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  showBacklogSimulator
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : totalBacklogs > 0
+                    ? 'bg-rose-500/15 text-rose-500 border border-rose-500/40 hover:bg-rose-500/25'
+                    : 'btn-secondary'
+                }`}
+                title="Simulate clearing active backlogs and supplementary exams"
+              >
+                <span>🔁</span>
+                <span>Backlog Simulator</span>
+                {totalBacklogs > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white animate-pulse">
+                    {totalBacklogs}
+                  </span>
+                )}
+              </button>
+
               <button
                 onClick={() => {
                   setShowPlacementHub(prev => !prev)
@@ -1329,33 +1389,16 @@ export function Dashboard() {
                   {eligibleCompaniesCount}/{PLACEMENT_CRITERIA.length}
                 </span>
               </button>
+
               <button
                 onClick={() => {
-                  setShowBacklogSimulator(prev => !prev)
-                  if (!showBacklogSimulator) {
+                  setShowAnalytics(prev => !prev)
+                  if (!showAnalytics) {
                     setShowSimulator(false)
-                    setShowAnalytics(false)
+                    setShowPlacementHub(false)
+                    setShowBacklogSimulator(false)
                   }
                 }}
-                className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  showBacklogSimulator
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : totalBacklogs > 0
-                    ? 'bg-rose-500/15 text-rose-500 border border-rose-500/40 hover:bg-rose-500/25'
-                    : 'btn-secondary'
-                }`}
-                title="Simulate clearing active backlogs and supplementary exams"
-              >
-                <span>🔁</span>
-                <span>Backlog Simulator</span>
-                {totalBacklogs > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white animate-pulse">
-                    {totalBacklogs}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setShowAnalytics(prev => !prev)}
                 className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-colors ${
                   showAnalytics
                     ? 'bg-primary-600 text-white shadow-xs'
@@ -1365,6 +1408,13 @@ export function Dashboard() {
               >
                 📊 {showAnalytics ? 'Hide Analytics' : 'Grade Analytics'}
               </button>
+            </div>
+
+            {/* Reports & Backup Tools */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[rgb(var(--text-secondary))] mr-1 hidden sm:inline">
+                Data:
+              </span>
               <button
                 onClick={() => navigate('/transcript', { state: { semesters } })}
                 className="btn-secondary text-xs sm:text-sm py-2 px-3 hover:border-primary-500 hover:text-primary-400"
@@ -1411,16 +1461,6 @@ export function Dashboard() {
                 onChange={handleRestoreJSONFile}
                 className="hidden"
               />
-              <button
-                onClick={() => setShowSimulator(prev => !prev)}
-                className={`text-xs sm:text-sm py-2 px-3.5 rounded-lg font-medium transition-colors ${
-                  showSimulator
-                    ? 'bg-primary-700 text-white shadow-xs'
-                    : 'btn-primary'
-                }`}
-              >
-                {showSimulator ? 'Close Simulator' : '🎯 Target Simulator'}
-              </button>
             </div>
           </div>
 
