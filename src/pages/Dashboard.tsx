@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 // @ts-ignore
@@ -291,6 +291,137 @@ export function Dashboard() {
     link.click()
     document.body.removeChild(link)
     showToast('📄 Transcript exported as CSV!')
+  }
+
+  // ── JSON Offline Backup & Restore ──────────────────────────────
+  const [isRestoringJSON, setIsRestoringJSON] = useState(false)
+  const jsonRestoreInputRef = useRef<HTMLInputElement>(null)
+
+  const exportBackupJSON = () => {
+    if (semesters.length === 0) {
+      showToast('No semesters to backup')
+      return
+    }
+
+    const backupData = {
+      app: 'EduGrade',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      studentEmail: user?.email || 'Student',
+      cgpa,
+      totalCredits,
+      semesters: semesters.map(sem => ({
+        label: sem.label,
+        year: sem.year,
+        semester_number: sem.semester_number,
+        subjects: sem.subjects.map(sub => ({
+          name: sub.name,
+          credits: sub.credits,
+          grade: sub.grade,
+          grade_points: sub.grade_points,
+        })),
+      })),
+    }
+
+    const jsonStr = JSON.stringify(backupData, null, 2)
+    const blob = new Blob([jsonStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `EduGrade_Backup_${user?.email ? user.email.split('@')[0] : 'Student'}_${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showToast('💾 Complete academic backup saved as JSON!')
+  }
+
+  const handleRestoreJSONFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setIsRestoringJSON(true)
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (!data.semesters || !Array.isArray(data.semesters) || data.semesters.length === 0) {
+        throw new Error('Invalid EduGrade backup file: No semesters found.')
+      }
+
+      const semCount = data.semesters.length
+      const totalSubs = data.semesters.reduce((sum: number, s: any) => sum + (s.subjects?.length || 0), 0)
+
+      const confirmed = window.confirm(
+        `Import Academic Backup:\n• ${semCount} Semester(s)\n• ${totalSubs} Course(s)\n\nDo you want to restore these records into your account?`
+      )
+      if (!confirmed) {
+        setIsRestoringJSON(false)
+        if (jsonRestoreInputRef.current) jsonRestoreInputRef.current.value = ''
+        return
+      }
+
+      for (const sem of data.semesters) {
+        const year = sem.year || parseInt(sem.label?.split('-')[0], 10) || 1
+        const semNum = sem.semester_number || parseInt(sem.label?.split('-')[1], 10) || 1
+        const label = sem.label || `${year}-${semNum}`
+
+        const { data: existingSem } = await supabase
+          .from('semesters')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('label', label)
+          .maybeSingle()
+
+        let semId = existingSem?.id
+
+        if (!semId) {
+          const { data: newSem, error: createErr } = await supabase
+            .from('semesters')
+            .insert({
+              user_id: user.id,
+              label,
+              year,
+              semester_number: semNum,
+            })
+            .select('id')
+            .single()
+
+          if (createErr) throw createErr
+          semId = newSem.id
+        }
+
+        await supabase
+          .from('subjects')
+          .delete()
+          .eq('semester_id', semId)
+
+        if (sem.subjects && Array.isArray(sem.subjects) && sem.subjects.length > 0) {
+          const toInsert = sem.subjects.map((s: any) => ({
+            semester_id: semId,
+            name: (s.name || 'Untitled Course').trim(),
+            credits: typeof s.credits === 'number' ? s.credits : 3,
+            grade: s.grade || null,
+            grade_points: typeof s.grade_points === 'number' ? s.grade_points : null,
+          }))
+
+          const { error: insErr } = await supabase
+            .from('subjects')
+            .insert(toInsert)
+
+          if (insErr) throw insErr
+        }
+      }
+
+      triggerCelebration()
+      showToast(`🎉 Restored ${semCount} semesters (${totalSubs} courses) successfully!`)
+      await loadSemesters()
+    } catch (err: any) {
+      showToast('Restore failed: ' + (err?.message || 'Invalid JSON format'))
+    } finally {
+      setIsRestoringJSON(false)
+      if (jsonRestoreInputRef.current) jsonRestoreInputRef.current.value = ''
+    }
   }
 
   const downloadTranscriptPDF = async () => {
@@ -1248,6 +1379,38 @@ export function Dashboard() {
               >
                 📥 Export CSV
               </button>
+              <button
+                onClick={exportBackupJSON}
+                className="btn-secondary text-xs sm:text-sm py-2 px-3"
+                title="Download full JSON backup of all semesters and grades"
+              >
+                💾 Backup JSON
+              </button>
+              <button
+                onClick={() => jsonRestoreInputRef.current?.click()}
+                disabled={isRestoringJSON}
+                className="btn-secondary text-xs sm:text-sm py-2 px-3 flex items-center gap-1.5 disabled:opacity-50"
+                title="Restore semesters from a previously exported EduGrade JSON file"
+              >
+                {isRestoringJSON ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
+                    <span>Restoring…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📂</span>
+                    <span>Restore JSON</span>
+                  </>
+                )}
+              </button>
+              <input
+                ref={jsonRestoreInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleRestoreJSONFile}
+                className="hidden"
+              />
               <button
                 onClick={() => setShowSimulator(prev => !prev)}
                 className={`text-xs sm:text-sm py-2 px-3.5 rounded-lg font-medium transition-colors ${
