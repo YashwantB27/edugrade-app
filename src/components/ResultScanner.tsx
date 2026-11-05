@@ -83,6 +83,37 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
     }
   }, [])
 
+  // ── Paste from Clipboard ──────────────────────────────────
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText()
+        if (text && text.trim()) {
+          setPastedText(text)
+          setScanState('parsing')
+          setOcrPct(100)
+          setOcrStatus('Parsing clipboard text…')
+          setTimeout(() => {
+            try {
+              const parsed = parseRawText(text)
+              setResult(parsed)
+              setEditableRawText(text)
+              if (parsed.subjects.length === 0) {
+                setShowRawEditor(true)
+              }
+              setScanState('preview')
+            } catch (err: any) {
+              setErrorMsg(err?.message || 'Failed to parse clipboard text.')
+              setScanState('error')
+            }
+          }, 150)
+        }
+      }
+    } catch {
+      // If clipboard permission denied, user can still use Ctrl+V in textarea
+    }
+  }
+
   // ── Handle pasted text ─────────────────────────────────────
   const handleParsePasted = () => {
     if (!pastedText.trim()) return
@@ -325,13 +356,23 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
                 <label className="text-xs font-semibold text-[rgb(var(--text-primary))]">
                   Paste result text or table from university website:
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setPastedText(SAMPLE_RESULT_TEXT)}
-                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold"
-                >
-                  ✨ Load Example (JNTU)
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    className="text-xs px-2.5 py-1 rounded-lg bg-primary-500/10 hover:bg-primary-500/20 text-primary-600 dark:text-primary-400 border border-primary-500/30 font-semibold flex items-center gap-1 transition-colors"
+                    title="Read text from clipboard and parse immediately"
+                  >
+                    <span>📋</span> Paste Clipboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPastedText(SAMPLE_RESULT_TEXT)}
+                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold"
+                  >
+                    ✨ Example
+                  </button>
+                </div>
               </div>
 
               <textarea

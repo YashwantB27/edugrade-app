@@ -46,6 +46,9 @@ const GRADE_ALIASES: Record<string, Grade> = {
   'S+': 'S',
   'S': 'S',
   'SS': 'S',
+  'S.': 'S',
+  '$': 'S',
+  '$$': 'S',
   '10': 'S',
   '10.0': 'S',
 
@@ -60,6 +63,8 @@ const GRADE_ALIASES: Record<string, Grade> = {
   // B grade / 8 points
   'B+': 'B',
   'B': 'B',
+  'BB': 'B',
+  'B.': 'B',
   'B1': 'B',
   'GOOD': 'B',
   '8': 'B',
@@ -68,6 +73,9 @@ const GRADE_ALIASES: Record<string, Grade> = {
   // C grade / 7 points (OCR often misreads 'C' as '©')
   'C+': 'C',
   'C': 'C',
+  'CC': 'C',
+  'C.': 'C',
+  'C-': 'C',
   'C1': 'C',
   'FAIR': 'C',
   'ABOVE AVERAGE': 'C',
@@ -248,13 +256,26 @@ export function smartParseLine(rawLine: string): ParsedSubject | null {
     nameTokens.push(t)
   }
 
-  const subjectName = nameTokens.join(' ').replace(/^[\s\-–:.]+|[\s\-–:.]+$/g, '').trim()
+  // If grade was not detected as an isolated column, check if the last name token is a grade (e.g. "LAB B" or "LAB Ss")
+  if (!gradeValue && nameTokens.length > 1) {
+    const lastToken = nameTokens[nameTokens.length - 1]
+    const potentialGrade = normaliseGrade(lastToken)
+    if (potentialGrade) {
+      gradeValue = potentialGrade
+      nameTokens.pop()
+    }
+  }
+
+  let subjectName = nameTokens.join(' ').replace(/^[\s\-–:.]+|[\s\-–:.]+$/g, '').trim()
   if (subjectName.length < 2) return null
 
   // Defaults and safe calculations
+  const isLabOrPractical = /\b(lab|laboratory|workshop|internship|project|seminar|viva|tinkering)\b/i.test(subjectName)
+  const inferredCredits = isLabOrPractical ? 1.5 : 3
+
   const finalCredits = creditsValue !== null
     ? creditsValue
-    : (gradeValue === 'CP' || gradeValue === 'Completed' ? 0 : 3)
+    : (gradeValue === 'CP' || gradeValue === 'Completed' ? 0 : inferredCredits)
 
   const gp = (gradeValue === 'CP' || gradeValue === 'Completed')
     ? null
@@ -507,24 +528,46 @@ async function preprocessImage(file: File): Promise<Blob | File> {
         return
       }
 
-      targetCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
-      const targetImgData = targetCtx.getImageData(0, 0, cropW, cropH)
+      // Upscale small marksheets (e.g. mobile screenshots) so text height is optimal for Tesseract OCR
+      const scale = cropW < 1200 ? Math.min(2.5, 1600 / cropW) : 1.0
+      targetCanvas.width = Math.round(cropW * scale)
+      targetCanvas.height = Math.round(cropH * scale)
+      const scaledCtx = targetCanvas.getContext('2d')
+      if (!scaledCtx) {
+        resolve(file)
+        return
+      }
+
+      scaledCtx.imageSmoothingEnabled = true
+      scaledCtx.imageSmoothingQuality = 'high'
+      scaledCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, targetCanvas.width, targetCanvas.height)
+
+      const targetImgData = scaledCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height)
       const td = targetImgData.data
 
-      // Grayscale & contrast enhancement
+      // High-Punch Contrast & Adaptive Binarization for crisp text extraction
+      const contrast = 75
+      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
+
       for (let i = 0; i < td.length; i += 4) {
         const gray = 0.299 * td[i] + 0.587 * td[i + 1] + 0.114 * td[i + 2]
-        const contrast = 1.35
-        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
-        const enhanced = factor * (gray - 128) + 128
-        const finalVal = Math.min(255, Math.max(0, enhanced))
+        let boosted = factor * (gray - 128) + 128
 
+        // Suppress background paper noise & faint yellow/green highlights to clean white
+        if (gray > 165) {
+          boosted = Math.min(255, boosted + 35)
+        } else if (gray < 110) {
+          // Darken text pixels for sharp letter edges
+          boosted = Math.max(0, boosted - 25)
+        }
+
+        const finalVal = Math.min(255, Math.max(0, Math.round(boosted)))
         td[i] = finalVal
         td[i + 1] = finalVal
         td[i + 2] = finalVal
       }
 
-      targetCtx.putImageData(targetImgData, 0, 0)
+      scaledCtx.putImageData(targetImgData, 0, 0)
       targetCanvas.toBlob((blob) => {
         resolve(blob ? new File([blob], 'enhanced.png', { type: 'image/png' }) : file)
       }, 'image/png')
