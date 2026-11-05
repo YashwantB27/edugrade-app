@@ -36,6 +36,9 @@ export function Dashboard() {
   })
 
   const [showScanner, setShowScanner] = useState(false)
+  const [showBacklogSimulator, setShowBacklogSimulator] = useState(false)
+  const [simulatedBacklogGrades, setSimulatedBacklogGrades] = useState<Record<string, { grade: Grade; credits: number }>>({})
+  const [isApplyingBacklogs, setIsApplyingBacklogs] = useState(false)
 
   const applyScannedResult = (parsed: ParseResult) => {
     const rows = parsed.subjects.map((s, i) => {
@@ -664,6 +667,92 @@ export function Dashboard() {
     ? gradedSemesters.reduce((min, s) => s.sgpa < min.sgpa ? s : min, gradedSemesters[0])
     : null
 
+  // Backlog and Supplementary Simulator computations
+  const backlogList = semesters.flatMap(sem =>
+    sem.subjects
+      .filter(s => s.grade === 'F')
+      .map(s => ({
+        ...s,
+        semesterId: sem.id,
+        semesterLabel: sem.label,
+      }))
+  )
+
+  const getSimulatedVal = (subId: string, currentCreds: number) => {
+    return simulatedBacklogGrades[subId] || {
+      grade: 'B' as Grade,
+      credits: currentCreds > 0 ? currentCreds : 3,
+    }
+  }
+
+  const calculateProjectedCGPA = () => {
+    if (backlogList.length === 0) {
+      return { projectedCGPA: cgpa, projectedCredits: totalCredits, recoveredCredits: 0 }
+    }
+
+    const projectedSemesters = semesters.map(sem => ({
+      ...sem,
+      subjects: sem.subjects.map(sub => {
+        if (sub.grade === 'F') {
+          const sim = getSimulatedVal(sub.id, sub.credits)
+          const gp = GRADE_POINTS[sim.grade] ?? 0
+          return {
+            ...sub,
+            grade: sim.grade,
+            grade_points: gp,
+            credits: sim.credits,
+          }
+        }
+        return sub
+      }),
+    }))
+
+    const projectedCGPA = calculateCGPA(projectedSemesters)
+    const projectedCredits = projectedSemesters.reduce((sum, sem) =>
+      sum + sem.subjects.reduce((acc, sub) =>
+        sub.grade === 'CP' || sub.grade === 'Completed' || sub.grade === 'F' ? acc : acc + sub.credits, 0
+      ), 0
+    )
+    const recoveredCredits = Math.max(0, projectedCredits - totalCredits)
+
+    return { projectedCGPA, projectedCredits, recoveredCredits }
+  }
+
+  const applySimulatedBacklogsToDb = async () => {
+    if (!user || backlogList.length === 0) return
+    const count = backlogList.length
+    if (!window.confirm(`Are you sure you want to apply cleared grades for ${count} subject${count === 1 ? '' : 's'} to your permanent records?`)) {
+      return
+    }
+
+    setIsApplyingBacklogs(true)
+    try {
+      for (const item of backlogList) {
+        const sim = getSimulatedVal(item.id, item.credits)
+        const gp = GRADE_POINTS[sim.grade] ?? 0
+        const { error } = await supabase
+          .from('subjects')
+          .update({
+            grade: sim.grade,
+            grade_points: gp,
+            credits: sim.credits,
+          })
+          .eq('id', item.id)
+
+        if (error) throw error
+      }
+
+      triggerCelebration()
+      showToast(`🎉 Cleared ${count} backlog${count === 1 ? '' : 's'}! Records updated.`)
+      await loadSemesters()
+      setShowBacklogSimulator(false)
+    } catch (err: any) {
+      showToast('Error updating backlogs: ' + err.message)
+    } finally {
+      setIsApplyingBacklogs(false)
+    }
+  }
+
   // Search & Filter helper
   const matchesSearchAndFilter = (subject: Subject) => {
     const q = searchQuery.trim().toLowerCase()
@@ -952,6 +1041,31 @@ export function Dashboard() {
 
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
               <button
+                onClick={() => {
+                  setShowBacklogSimulator(prev => !prev)
+                  if (!showBacklogSimulator) {
+                    setShowSimulator(false)
+                    setShowAnalytics(false)
+                  }
+                }}
+                className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  showBacklogSimulator
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : totalBacklogs > 0
+                    ? 'bg-rose-500/15 text-rose-500 border border-rose-500/40 hover:bg-rose-500/25'
+                    : 'btn-secondary'
+                }`}
+                title="Simulate clearing active backlogs and supplementary exams"
+              >
+                <span>🔁</span>
+                <span>Backlog Simulator</span>
+                {totalBacklogs > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white animate-pulse">
+                    {totalBacklogs}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setShowAnalytics(prev => !prev)}
                 className={`text-xs sm:text-sm py-2 px-3 rounded-lg font-medium transition-colors ${
                   showAnalytics
@@ -1102,6 +1216,283 @@ export function Dashboard() {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+{/* Backlog & Supplementary Clearance Simulator Panel */}
+          {showBacklogSimulator && (
+            <div className="mt-6 pt-6 border-t border-[rgb(var(--border))] transition-all duration-300">
+              <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔁</span>
+                    <h4 className="text-base font-bold font-display text-[rgb(var(--text-primary))]">
+                      Supplementary & Arrears Clearance Simulator
+                    </h4>
+                  </div>
+                  <p className="text-xs text-[rgb(var(--text-secondary))]">
+                    Simulate clearing pending backlogs in upcoming supplementary exams and see your projected CGPA jump in real-time.
+                  </p>
+                </div>
+
+                {backlogList.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
+                    <span className="text-xs text-[rgb(var(--text-secondary))] mr-1">Quick Presets:</span>
+                    {(['S', 'A', 'B', 'C'] as Grade[]).map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => {
+                          const next: Record<string, { grade: Grade; credits: number }> = {}
+                          backlogList.forEach(b => {
+                            next[b.id] = { grade: g, credits: b.credits > 0 ? b.credits : 3 }
+                          })
+                          setSimulatedBacklogGrades(next)
+                        }}
+                        className="px-2.5 py-1 text-xs rounded-lg font-semibold bg-[rgb(var(--bg-tertiary))] hover:bg-primary-600 hover:text-white text-[rgb(var(--text-secondary))] border border-[rgb(var(--border))] transition-colors"
+                        title={`Simulate clearing all backlogs with grade ${g}`}
+                      >
+                        All {g} ({GRADE_POINTS[g]} GP)
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setSimulatedBacklogGrades({})}
+                      className="px-2 py-1 text-xs text-rose-500 hover:underline"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {backlogList.length === 0 ? (
+                <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center my-3">
+                  <span className="text-4xl mb-2 block">🎉</span>
+                  <h5 className="font-bold text-base text-emerald-600 dark:text-emerald-400 font-display">
+                    Zero Active Backlogs!
+                  </h5>
+                  <p className="text-xs text-[rgb(var(--text-secondary))] max-w-md mx-auto mt-1">
+                    Outstanding performance! All {totalSubjects} courses across all semesters are cleared. Your academic standing is 100% compliant with university and campus placement guidelines.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    const { projectedCGPA, projectedCredits, recoveredCredits } = calculateProjectedCGPA()
+                    const cgpaDiff = projectedCGPA - cgpa
+                    const currentPct = Math.max(0, (cgpa - 0.75) * 10)
+                    const projPct = Math.max(0, (projectedCGPA - 0.75) * 10)
+                    const pctDiff = projPct - currentPct
+                    const projBadge = getCGPABadge(projectedCGPA)
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          {/* CGPA Projection */}
+                          <div className="p-3.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-primary-500/30 shadow-xs">
+                            <span className="text-[10px] uppercase font-bold text-primary-500 tracking-wider block">
+                              Projected CGPA
+                            </span>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-2xl font-black font-display text-[rgb(var(--text-primary))]">
+                                {projectedCGPA.toFixed(2)}
+                              </span>
+                              {cgpaDiff > 0 && (
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                  +{cgpaDiff.toFixed(2)} 🚀
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-[rgb(var(--text-secondary))] block mt-0.5">
+                              Current: {cgpa.toFixed(2)} / 10.0
+                            </span>
+                          </div>
+
+                          {/* Percentage Projection */}
+                          <div className="p-3.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] shadow-xs">
+                            <span className="text-[10px] uppercase font-bold text-[rgb(var(--text-secondary))] tracking-wider block">
+                              Equivalent Percentage
+                            </span>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-2xl font-black font-display text-primary-600 dark:text-primary-400">
+                                {projPct.toFixed(1)}%
+                              </span>
+                              {pctDiff > 0 && (
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                  +{pctDiff.toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-[rgb(var(--text-secondary))] block mt-0.5">
+                              Formula: (CGPA - 0.75) × 10
+                            </span>
+                          </div>
+
+                          {/* Recovered Credits */}
+                          <div className="p-3.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] shadow-xs">
+                            <span className="text-[10px] uppercase font-bold text-[rgb(var(--text-secondary))] tracking-wider block">
+                              Total Credits Earned
+                            </span>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-2xl font-bold text-[rgb(var(--text-primary))]">
+                                {projectedCredits}
+                              </span>
+                              {recoveredCredits > 0 && (
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                  +{recoveredCredits} cr
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-[rgb(var(--text-secondary))] block mt-0.5">
+                              {backlogList.length} backlogs cleared to 0
+                            </span>
+                          </div>
+
+                          {/* Standing & Placement Eligibility */}
+                          <div className="p-3.5 rounded-xl bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] shadow-xs">
+                            <span className="text-[10px] uppercase font-bold text-[rgb(var(--text-secondary))] tracking-wider block">
+                              Academic Standing
+                            </span>
+                            <div className="text-sm font-bold text-[rgb(var(--text-primary))] mt-1">
+                              {projBadge.label}
+                            </div>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block mt-0.5">
+                              ✨ 0 Arrears / Placement Eligible
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Backlog Subjects Interactive Table */}
+                        <div className="border border-[rgb(var(--border))] rounded-xl overflow-hidden bg-[rgb(var(--bg-primary))]">
+                          <div className="bg-[rgb(var(--bg-tertiary))] px-4 py-2.5 flex items-center justify-between border-b border-[rgb(var(--border))]">
+                            <span className="text-xs font-bold text-[rgb(var(--text-primary))]">
+                              Active Backlog Courses ({backlogList.length} Pending)
+                            </span>
+                            <span className="text-[11px] text-[rgb(var(--text-secondary))]">
+                              Select target cleared grade for each subject
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-[rgb(var(--border))]">
+                            {backlogList.map((item) => {
+                              const sim = getSimulatedVal(item.id, item.credits)
+                              const gp = GRADE_POINTS[sim.grade] ?? 0
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[rgb(var(--bg-secondary))] transition-colors"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/30 shrink-0">
+                                      Sem {item.semesterLabel}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-xs sm:text-sm text-[rgb(var(--text-primary))] block truncate">
+                                        {item.name}
+                                      </span>
+                                      <span className="text-[10px] text-rose-500 font-medium">
+                                        Current Grade: F (0 GP)
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                                    {/* Credits input */}
+                                    <div className="flex items-center gap-1.5">
+                                      <label className="text-[10px] text-[rgb(var(--text-secondary))] uppercase font-semibold">
+                                        Credits:
+                                      </label>
+                                      <select
+                                        value={sim.credits}
+                                        onChange={(e) => {
+                                          const newCredits = parseFloat(e.target.value) || 3
+                                          setSimulatedBacklogGrades(prev => ({
+                                            ...prev,
+                                            [item.id]: { grade: sim.grade, credits: newCredits },
+                                          }))
+                                        }}
+                                        className="input-field text-xs py-1 px-2 rounded-lg bg-[rgb(var(--bg-tertiary))]"
+                                      >
+                                        <option value="1">1</option>
+                                        <option value="1.5">1.5</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                      </select>
+                                    </div>
+
+                                    {/* Cleared Grade selector */}
+                                    <div className="flex items-center gap-1.5">
+                                      <label className="text-[10px] text-[rgb(var(--text-secondary))] uppercase font-semibold">
+                                        Cleared Grade:
+                                      </label>
+                                      <select
+                                        value={sim.grade}
+                                        onChange={(e) => {
+                                          const newGrade = e.target.value as Grade
+                                          setSimulatedBacklogGrades(prev => ({
+                                            ...prev,
+                                            [item.id]: { grade: newGrade, credits: sim.credits },
+                                          }))
+                                        }}
+                                        className="input-field text-xs font-bold py-1 px-2 rounded-lg bg-[rgb(var(--bg-tertiary))] text-primary-500 border border-primary-500/40"
+                                      >
+                                        <option value="S">S (10 GP - Outstanding)</option>
+                                        <option value="A">A (9 GP - Excellent)</option>
+                                        <option value="B">B (8 GP - Very Good)</option>
+                                        <option value="C">C (7 GP - Good)</option>
+                                        <option value="D">D (6 GP - Fair)</option>
+                                        <option value="E">E (5 GP - Satisfactory)</option>
+                                      </select>
+                                    </div>
+
+                                    <div className="text-right w-14">
+                                      <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 block">
+                                        {gp} GP
+                                      </span>
+                                      <span className="text-[9px] text-[rgb(var(--text-secondary))]">
+                                        {(sim.credits * gp).toFixed(1)} pts
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* Apply / Commit to Database action bar */}
+                          <div className="p-3 bg-[rgb(var(--bg-secondary))] border-t border-[rgb(var(--border))] flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <p className="text-[11px] text-[rgb(var(--text-secondary))]">
+                              💡 Got your supplementary re-evaluation or exam results? Apply them directly to your permanent record.
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={applySimulatedBacklogsToDb}
+                              disabled={isApplyingBacklogs}
+                              className="btn-primary text-xs sm:text-sm py-2 px-4 shadow-md flex items-center gap-2 shrink-0"
+                            >
+                              {isApplyingBacklogs ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  <span>Applying Grades…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>💾</span>
+                                  <span>Apply Cleared Grades to Record</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
             </div>
           )}
 
