@@ -726,10 +726,10 @@ export function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* CGPA Hero Card with Glassmorphism & Micro-Gradients */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-900 rounded-3xl p-6 sm:p-8 mb-8 text-white shadow-xl shadow-primary-950/20 border border-white/10 no-print">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#881337] via-[#4c0519] to-[#09090b] rounded-3xl p-6 sm:p-8 mb-8 text-white shadow-2xl shadow-rose-950/40 border border-rose-500/20 no-print">
           {/* Ambient glowing orbs */}
-          <div className="absolute -top-24 -right-24 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
             {/* Left side: Circular Animated Gauge & Score Info */}
@@ -739,9 +739,9 @@ export function Dashboard() {
                 <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 108 108">
                   <defs>
                     <linearGradient id="cgpaRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#38bdf8" />
-                      <stop offset="50%" stopColor="#818cf8" />
-                      <stop offset="100%" stopColor="#c084fc" />
+                      <stop offset="0%" stopColor="#fda4af" />
+                      <stop offset="50%" stopColor="#f43f5e" />
+                      <stop offset="100%" stopColor="#be123c" />
                     </linearGradient>
                   </defs>
                   {/* Track circle */}
@@ -834,7 +834,7 @@ export function Dashboard() {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-medium text-primary-200">SGPA Trend</span>
                     {hoveredTrendIdx !== null ? (
-                      <span className="text-xs font-bold text-cyan-300">
+                      <span className="text-xs font-bold text-rose-300">
                         {trendData[hoveredTrendIdx].label}: {trendData[hoveredTrendIdx].sgpa > 0 ? trendData[hoveredTrendIdx].sgpa.toFixed(2) : '—'}
                       </span>
                     ) : (
@@ -846,8 +846,8 @@ export function Dashboard() {
                     <svg className="w-full h-20" viewBox={`0 0 ${chartWidth} ${chartHeight}`} fill="none">
                       <defs>
                         <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.45" />
-                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                          <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.45" />
+                          <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
 
@@ -871,7 +871,7 @@ export function Dashboard() {
                       {linePath && (
                         <path
                           d={linePath}
-                          stroke="#38bdf8"
+                          stroke="#f43f5e"
                           strokeWidth="2.5"
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -887,7 +887,7 @@ export function Dashboard() {
                               cx={p.x}
                               cy={p.y}
                               r="8"
-                              fill="rgba(56, 189, 248, 0.3)"
+                              fill="rgba(244, 63, 94, 0.35)"
                               className="animate-pulse"
                             />
                           )}
@@ -896,7 +896,7 @@ export function Dashboard() {
                             cy={p.y}
                             r={hoveredTrendIdx === i ? 5 : 3.5}
                             fill="#ffffff"
-                            stroke="#38bdf8"
+                            stroke="#f43f5e"
                             strokeWidth={hoveredTrendIdx === i ? 3 : 2}
                             className="cursor-pointer transition-all duration-200"
                             onMouseEnter={() => setHoveredTrendIdx(i)}
@@ -921,7 +921,7 @@ export function Dashboard() {
         </div>
 
         {/* Academic Tools: Target CGPA Simulator, Analytics, Transcript & Export */}
-        <div className="card mb-8 border border-primary-500/20 bg-gradient-to-r from-primary-500/5 via-[rgb(var(--bg-secondary))] to-indigo-500/5 no-print">
+        <div className="card mb-8 border border-primary-500/20 bg-gradient-to-r from-primary-500/5 via-[rgb(var(--bg-secondary))] to-rose-500/5 no-print">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xl shrink-0">
@@ -1514,7 +1514,7 @@ export function Dashboard() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowScanner(true)}
-                  className="flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 text-white font-semibold shadow-sm hover:from-violet-600 hover:to-indigo-700 transition-all"
+                  className="flex items-center gap-1.5 text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 via-primary-700 to-primary-800 text-white font-semibold shadow-md shadow-rose-950/40 hover:from-rose-500 hover:to-primary-700 transition-all"
                   title="Upload a result document and auto-fill grades"
                 >
                   <span>📷</span> Scan Result

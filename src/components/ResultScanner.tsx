@@ -204,7 +204,7 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[rgb(var(--border))]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl shadow-md shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 via-primary-600 to-primary-800 flex items-center justify-center text-white text-xl shadow-lg shadow-rose-950/40 border border-rose-400/20 shrink-0">
               📷
             </div>
             <div>
@@ -376,9 +376,9 @@ export function ResultScanner({ onApply, onClose }: ResultScannerProps) {
                   />
                   <defs>
                     <linearGradient id="scannerGradientRing" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#818cf8" />
-                      <stop offset="50%" stopColor="#38bdf8" />
-                      <stop offset="100%" stopColor="#34d399" />
+                      <stop offset="0%" stopColor="#fda4af" />
+                      <stop offset="50%" stopColor="#f43f5e" />
+                      <stop offset="100%" stopColor="#be123c" />
                     </linearGradient>
                   </defs>
                 </svg>

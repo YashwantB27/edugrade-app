@@ -1,37 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap');
 
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  --color-primary-50: #fff1f2;
+  --color-primary-100: #ffe4e6;
+  --color-primary-200: #fecdd3;
+  --color-primary-300: #fda4af;
+  --color-primary-400: #fb7185;
+  --color-primary-500: #e11d48;
+  --color-primary-600: #be123c;
+  --color-primary-700: #9f1239;
+  --color-primary-800: #881337;
+  --color-primary-900: #4c0519;
+  --color-primary-950: #2a020c;
 }
 
 @layer base {
   :root {
     --bg-primary: 255 255 255;
-    --bg-secondary: 249 250 251;
-    --bg-tertiary: 243 244 246;
-    --text-primary: 17 24 39;
-    --text-secondary: 75 85 99;
-    --border: 229 231 235;
+    --bg-secondary: 250 250 250;
+    --bg-tertiary: 244 244 245;
+    --text-primary: 18 18 20;
+    --text-secondary: 100 100 110;
+    --border: 228 228 231;
   }
 
   .dark {
-    --bg-primary: 10 15 29;
-    --bg-secondary: 15 23 42;
-    --bg-tertiary: 30 41 59;
-    --text-primary: 248 250 252;
-    --text-secondary: 203 213 225;
-    --border: 51 65 85;
+    --bg-primary: 9 9 11;
+    --bg-secondary: 18 18 20;
+    --bg-tertiary: 28 28 32;
+    --text-primary: 250 250 250;
+    --text-secondary: 161 161 170;
+    --border: 39 39 42;
   }
 
   body {
@@ -41,23 +42,23 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 active:scale-[0.98] transition-all shadow-md shadow-rose-950/20 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-[rgb(var(--bg-tertiary))] text-[rgb(var(--text-primary))] font-medium rounded-lg hover:bg-[rgb(var(--bg-secondary))] transition-colors;
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-[rgb(var(--bg-tertiary))] text-[rgb(var(--text-primary))] font-medium rounded-lg hover:bg-[rgb(var(--bg-secondary))] border border-[rgb(var(--border))] transition-all;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 text-[rgb(var(--text-secondary))] font-medium rounded-lg hover:bg-[rgb(var(--bg-tertiary))] transition-colors;
+    @apply inline-flex items-center gap-2 px-4 py-2 text-[rgb(var(--text-secondary))] font-medium rounded-lg hover:bg-[rgb(var(--bg-tertiary))] hover:text-[rgb(var(--text-primary))] transition-all;
   }
 
   .input-field {
-    @apply w-full px-3 py-2 bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] rounded-lg text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all;
+    @apply w-full px-3 py-2 bg-[rgb(var(--bg-primary))] border border-[rgb(var(--border))] rounded-lg text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-secondary))] focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all;
   }
 
   .card {
-    @apply bg-[rgb(var(--bg-secondary))] border border-[rgb(var(--border))] rounded-2xl p-6 transition-all duration-300 shadow-xs;
+    @apply bg-[rgb(var(--bg-secondary))] border border-[rgb(var(--border))] rounded-2xl p-6 transition-all duration-300 shadow-sm hover:border-[rgb(var(--border))]/80;
   }
 }
 
