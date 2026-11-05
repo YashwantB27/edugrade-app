@@ -17,6 +17,7 @@
     "canvas-confetti": "^1.9.4",
     "html2pdf.js": "^0.14.0",
     "mammoth": "^1.13.0",
+    "pdfjs-dist": "^3.11.174",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.3",
